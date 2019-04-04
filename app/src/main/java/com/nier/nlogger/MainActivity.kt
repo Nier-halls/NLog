@@ -9,14 +9,26 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        findViewById<TextView>(R.id.tv_result).text = sayHello("Nier-Auto")
-    }
+        findViewById<TextView>(R.id.tv_result).text = NLoggerProxy.instance.test("Nier-Automata-test")
 
-    external fun sayHello(content: String): String
-
-    companion object {
-        init {
-            System.loadLibrary("nier-native")
+        findViewById<TextView>(R.id.btn_init).setOnClickListener {
+            NLoggerProxy.instance.init(this)
         }
+
+        findViewById<TextView>(R.id.btn_open).setOnClickListener {
+            NLoggerProxy.instance.open()
+
+        }
+
+        findViewById<TextView>(R.id.btn_write).setOnClickListener {
+            NLoggerProxy.instance.write("")
+
+        }
+
+        findViewById<TextView>(R.id.btn_flush).setOnClickListener {
+            NLoggerProxy.instance.flush()
+        }
+
+
     }
 }
