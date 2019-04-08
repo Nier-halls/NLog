@@ -158,11 +158,9 @@ void clogan_zlib(cLogan_model *model, char *data, int data_len, int type) {
                 temp += model->remain_data_len;
             }
             memcpy(temp, data, copy_data_len); //填充剩余数据和压缩数据
-            // [fgd_debug] < 2019/4/4 17:17 >  //测试不做加密处理fgd
-            //aes_encrypt_clogan((unsigned char *) gzip_data, model->last_point, handler_len,
-            //                  (unsigned char *) model->aes_iv);
-            // [fgd_debug] < 2019/4/4 17:17 >
-            memcpy(model->last_point, gzip_data, handler_len);
+            aes_encrypt_clogan((unsigned char *) gzip_data, model->last_point, handler_len,
+                              (unsigned char *) model->aes_iv);
+//            memcpy(model->last_point, gzip_data, handler_len);
 
             model->total_len += handler_len;
             model->content_len += handler_len;
@@ -170,7 +168,12 @@ void clogan_zlib(cLogan_model *model, char *data, int data_len, int type) {
         }
         //未满16的缓存在内存中
         if (remain_len) {
+            //为了把不满16的数据再重新放入到remain中
             if (handler_len) {
+                //data 是新加入的数据，remain_data_len是之前剩余的数据
+                //remain_data + data 是总的数据
+                //handler_len 本次处理的数据
+                //要得到data中处理了多少数据，用处理的数据减去remain_data的数据就可以知道
                 int copy_data_len = handler_len - model->remain_data_len;
                 temp = (unsigned char *) data;
                 temp += copy_data_len;
@@ -195,7 +198,8 @@ void clogan_zlib_end_compress(cLogan_model *model) {
     (void) deflateEnd(model->strm);
     int val = 16 - model->remain_data_len;//这一步是什么意思
     char data[16];
-    memset(data, val, 16);//这里为什么不用0来做初始化
+    // [fgd_debug] < 2019/4/8 22:24 > 不加密的情况下看看是什么 用空字符来处理多余数据
+    memset(data, '\0', 16);//这里为什么不用0来做初始化
     if (model->remain_data_len) {
         memcpy(data, model->remain_data, model->remain_data_len);
     }

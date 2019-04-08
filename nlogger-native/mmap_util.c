@@ -67,10 +67,10 @@ int open_mmap_file_clogan(char *_filepath, unsigned char **buffer, unsigned char
                     _size = fwrite(zero_data, sizeof(char), size, file);//这里为什么要填充‘0’数据到文件中?
                     fflush(file);//每次打开缓存文件都会把文件中的所有数据全部填充成0?有什么套路吗?
                     // [fgd_debug] < 2019/4/3 20:04 > 打日志看看是不是确实被全部都置为null了
-                    fseek(file, 0, SEEK_SET);
-                    char buff[10];
-                    fgets(buff, 10, file);
-                    LOGD("longBytes >>> %s", buff);
+//                    fseek(file, 0, SEEK_SET);
+//                    char buff[10];
+//                    fgets(buff, 10, file);
+//                    LOGD("longBytes >>> %s", buff);
                     // [fgd_debug] < 2019/4/3 20:05 >
                     if (_size == size) {
                         printf_clogan("copy data 2 mmap file success\n");

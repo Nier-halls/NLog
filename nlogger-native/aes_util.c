@@ -27,9 +27,10 @@ static unsigned char KEY[16] = {0};
 static unsigned char IV[16] = {0};
 
 void aes_encrypt_clogan(unsigned char *in, unsigned char *out, int length, unsigned char *iv) {
-    mbedtls_aes_context context;
-    mbedtls_aes_setkey_enc(&context, (unsigned char *) KEY, 128);
-    mbedtls_aes_crypt_cbc(&context, MBEDTLS_AES_ENCRYPT, length, iv, in, out); //加密
+//    mbedtls_aes_context context;
+//    mbedtls_aes_setkey_enc(&context, (unsigned char *) KEY, 128);
+//    mbedtls_aes_crypt_cbc(&context, MBEDTLS_AES_ENCRYPT, length, iv, in, out); //加密
+    memcpy(out, in, length);
 }
 
 void aes_init_key_iv(const char *key, const char *iv) {
