@@ -200,6 +200,7 @@ void clogan_zlib_end_compress(cLogan_model *model) {
     char data[16];
     // [fgd_debug] < 2019/4/8 22:24 > 不加密的情况下看看是什么 用空字符来处理多余数据
     memset(data, '\0', 16);//这里为什么不用0来做初始化
+    // [fgd_debug] < 2019/4/8 22:24 >
     if (model->remain_data_len) {
         memcpy(data, model->remain_data, model->remain_data_len);
     }

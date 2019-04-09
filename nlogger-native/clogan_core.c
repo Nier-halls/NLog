@@ -672,6 +672,8 @@ void insert_header_file_clogan(cLogan_model *loganModel) {
 void write_flush_clogan() {
     if (logan_model->zlib_type == LOGAN_ZLIB_ING) {
         //什么情况下会走到这一步呢？
+        //write的情况下，并且是在mmap文件占用超过三分之一时会在没有调end的情况下flush，然后进入到这一步
+        //这一步不是很合理！！！应该放回到write的地方去
         clogan_zlib_end_compress(logan_model);
         update_length_clogan(logan_model);
     }
@@ -714,6 +716,8 @@ void clogan_write2(char *data, int length) {
             printf_clogan("clogan_write2 > write type MMAP \n");
         }
         if (isWrite) { //写入
+            //有什么情况会在没有end的情况下走进到这一步里面
+            //如果是MMAP 且 文件长度已经超过三分之一
             write_flush_clogan();
         } else if (is_gzip_end) { //如果是mmap类型,不回写IO,初始化下一步
             //什么情况下会走到这一步呢？ 文件为空  或者  压缩大小超过5kb，
@@ -726,7 +730,7 @@ void clogan_write2(char *data, int length) {
     }
 }
 
-//如果数据流非常大,切割数据,分片写入 
+//如果数据流非常大,切割数据,分片写入
 //按照这边的逻辑来看基本都会去做分片写入数据的操作
 //分片操作有什么优势吗，一次性写入和分开写入会有性能上的差异吗？
 void clogan_write_section(char *data, int length) {
