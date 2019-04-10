@@ -62,27 +62,26 @@
 #define CLOGAN_VERSION_NUMBER 3 //Logan的版本号(2)版本
 
 typedef struct logan_model_struct {
-    int total_len; //mmap文件中日志文件的数据长度  是卸载header后面的3位的那个数字吗？
-    char *file_path; //日志的文件的路径，一般在外部storage目录下面
+    int is_malloc_zlib; //[zip]
+    z_stream *strm; //压缩的时候 z_stream 的地址 //[zip]
+    int zlib_type; //压缩类型 //[zip]
+    char remain_data[16]; //剩余空间 //[zip]
+    int remain_data_len; //剩余空间长度 //[zip]
+    int is_ready_gzip; //是否可以gzip //[zip]
 
-    int is_malloc_zlib;
-    z_stream *strm; //压缩的时候 z_stream 的地址 
-    int zlib_type; //压缩类型
-    char remain_data[16]; //剩余空间
-    int remain_data_len; //剩余空间长度
 
-    int is_ready_gzip; //是否可以gzip
+    char *file_path; //日志的文件的路径，一般在外部storage目录下面 //[log]
+    int file_stream_type; //文件流类型 //[log]
+    FILE *file; //日志文件流 //[log]
+    long file_len; //日志文件当前的文件大小 //[log]
 
-    int file_stream_type; //文件流类型
-    FILE *file; //日志文件流
 
-    long file_len; //日志文件当前的文件大小
-
-    unsigned char *buffer_point; //缓存的指针 (不变)
-    unsigned char *last_point; //最后写入位置的指针
-    unsigned char *total_point; //mmap中总数的指针 (可能变) , 给c看,低字节//为什么可能变？？？
-    unsigned char *content_lent_point;//协议内容长度指针 , 给java看,高字节//为什么要给java看？ 难道java需要通过JNI来读取这个字段？
-    int content_len; //内容的大小
+    int total_len; //mmap文件中日志文件的数据长度  是卸载header后面的3位的那个数字吗？ //[mmp]
+    unsigned char *buffer_point; //缓存的指针 (不变)//[mmp]
+    unsigned char *last_point; //最后写入位置的指针//[mmp]
+    unsigned char *total_point; //mmap中总数的指针 (可能变) , 给c看,低字节//为什么可能变？？？//[mmp]
+    unsigned char *content_lent_point;//协议内容长度指针 , 给java看,高字节//为什么要给java看？ 难道java需要通过JNI来读取这个字段？//[mmp]
+    int content_len; //内容的大小//[mmp]
 
     unsigned char aes_iv[16]; //aes_iv
     int is_ok;
