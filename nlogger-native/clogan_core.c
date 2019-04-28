@@ -791,7 +791,7 @@ clogan_write(int flag, char *log, long long local_time, char *thread_name, long 
         }
     }
 
-    //2. 判断MMAP文件是否存在,如果被删除,用内存缓存  难道是让流氓软件清掉了
+    //2. 判断MMAP文件是否存在,如果被删除,用内存缓存  难道是让流氓软件清掉了,应该不会出现这种情况，就算出现这种情况是否重新打开mmap来进行补救？
     if (buffer_type == LOGAN_MMAP_MMAP && !is_file_exist_clogan(_mmap_file_path)) {
         if (NULL != _cache_buffer_buffer) {
             buffer_type = LOGAN_MMAP_MEMORY;
@@ -804,7 +804,7 @@ clogan_write(int flag, char *log, long long local_time, char *thread_name, long 
             logan_model->total_len = 0;
             logan_model->content_len = 0;
             logan_model->remain_data_len = 0;
-
+            //这里为什么要重新init一次
             if (logan_model->zlib_type == LOGAN_ZLIB_INIT) {
                 clogan_zlib_delete_stream(logan_model); //关闭已开的流
             }

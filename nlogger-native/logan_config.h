@@ -32,8 +32,8 @@
 #define  LOGAN_WRITE_PROTOCOL_HEADER '^'
 #define  LOGAN_WRITE_PROTOCOL_TAIL '&'
 
-#define LOGAN_CACHE_DIR "nlogger_cache"
-#define LOGAN_CACHE_FILE "nlogger_mmap"
+#define LOGAN_CACHE_DIR "nlogger_mmap_cache"
+#define LOGAN_CACHE_FILE "nlogger.mmap"
 
 #define LOGAN_MMAP_HEADER_PROTOCOL '^' //MMAP的头文件标识符
 #define LOGAN_MMAP_TAIL_PROTOCOL '&' //MMAP尾文件标识符
