@@ -3,7 +3,7 @@
 //
 
 #include "nlogger.h"
-#include "nlogger_android_log_util.h"
+#include "nlogger_android_log.h"
 #include "nlogger_error_code.h"
 
 

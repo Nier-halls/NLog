@@ -1,6 +1,6 @@
 
 #include "nlogger_native_interface.h"
-#include "nlogger_android_log_util.h"
+#include "nlogger_android_log.h"
 #include "nlogger.h"
 
 JNIEXPORT jint JNICALL
@@ -8,7 +8,7 @@ Java_com_nier_nlogger_NLoggerProxy_nativeWrite(JNIEnv *env, jobject instance, ji
                                                jstring log_, jlong local_time,
                                                jstring thread_name_, jlong thread_id,
                                                jint is_main) {
-    const char *log = (*env)->GetStringUTFChars(env, log_, 0);
+    const char *log         = (*env)->GetStringUTFChars(env, log_, 0);
     const char *thread_name = (*env)->GetStringUTFChars(env, thread_name_, 0);
 
     jint code = (jint) clogan_write(flag, log, local_time, thread_name, thread_id, is_main);
@@ -24,10 +24,11 @@ Java_com_nier_nlogger_NLoggerProxy_nativeOpen(JNIEnv *env, jobject instance,
                                               jstring file_name_) {
     const char *file_name = (*env)->GetStringUTFChars(env, file_name_, 0);
 
-    jint code = (jint) clogan_open(file_name);
+//    jint code = (jint) clogan_open(file_name);
+    LOGD("JNI", "file_name: %s", file_name);
 
     (*env)->ReleaseStringUTFChars(env, file_name_, file_name);
-    return code;
+    return 0;
 }
 
 JNIEXPORT jint JNICALL
@@ -36,10 +37,10 @@ Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env, jobject instance,
                                               jstring dir_path_, jint max_file,
                                               jstring encrypt_key16_,
                                               jstring encrypt_iv16_) {
-    const char *dir_path = (*env)->GetStringUTFChars(env, dir_path_, 0);
-    const char *cache_path = (*env)->GetStringUTFChars(env, cache_path_, 0);
+    const char *dir_path      = (*env)->GetStringUTFChars(env, dir_path_, 0);
+    const char *cache_path    = (*env)->GetStringUTFChars(env, cache_path_, 0);
     const char *encrypt_key16 = (*env)->GetStringUTFChars(env, encrypt_key16_, 0);
-    const char *encrypt_iv16 = (*env)->GetStringUTFChars(env, encrypt_iv16_, 0);
+    const char *encrypt_iv16  = (*env)->GetStringUTFChars(env, encrypt_iv16_, 0);
 
     /**
      * todo
@@ -70,8 +71,8 @@ Java_com_nier_nlogger_NLoggerProxy_nativeFlush(JNIEnv *env, jobject instance) {
 
 JNIEXPORT jstring JNICALL
 Java_com_nier_nlogger_NLoggerProxy_sayHello(JNIEnv *env, jobject instance, jstring content) {
-    const char *arg = (*env)->GetStringUTFChars(env, content, 0);
-    char *result = ", hello log native...";
+    const char *arg    = (*env)->GetStringUTFChars(env, content, 0);
+    char       *result = ", hello log native...";
 //    LOGD("result -> %s", result);
 
     size_t total_size = strlen(arg) + strlen(result);
