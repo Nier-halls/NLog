@@ -4,17 +4,22 @@
 #include "nlogger.h"
 
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeWrite(JNIEnv *env, jobject instance, jint flag,
+Java_com_nier_nlogger_NLoggerProxy_nativeWrite(JNIEnv *env, jobject instance,
+                                               jstring file_name_, jint flag,
                                                jstring log_, jlong local_time,
                                                jstring thread_name_, jlong thread_id,
                                                jint is_main) {
+    const char *file_name   = (*env)->GetStringUTFChars(env, file_name_, 0);
     const char *log         = (*env)->GetStringUTFChars(env, log_, 0);
     const char *thread_name = (*env)->GetStringUTFChars(env, thread_name_, 0);
 
-    jint code = (jint) clogan_write(flag, log, local_time, thread_name, thread_id, is_main);
+//    jint code = (jint) clogan_write(flag, log, local_time, thread_name, thread_id, is_main);
+
+    jint code = (jint) write_nlogger(file_name, flag, log, local_time, thread_name, thread_id, is_main);
 
     (*env)->ReleaseStringUTFChars(env, log_, log);
     (*env)->ReleaseStringUTFChars(env, thread_name_, thread_name);
+    (*env)->ReleaseStringUTFChars(env, file_name_, file_name);
     return code;
 
 }
@@ -27,14 +32,18 @@ Java_com_nier_nlogger_NLoggerProxy_nativeOpen(JNIEnv *env, jobject instance,
 //    jint code = (jint) clogan_open(file_name);
     LOGD("JNI", "file_name: %s", file_name);
 
+    jint code = (jint) open_log_file(file_name);
+
     (*env)->ReleaseStringUTFChars(env, file_name_, file_name);
-    return 0;
+    return code;
 }
 
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env, jobject instance,
+Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env,
+                                              jobject instance,
                                               jstring cache_path_,
-                                              jstring dir_path_, jint max_file,
+                                              jstring dir_path_,
+                                              jint max_file,
                                               jstring encrypt_key16_,
                                               jstring encrypt_iv16_) {
     const char *dir_path      = (*env)->GetStringUTFChars(env, dir_path_, 0);
@@ -54,8 +63,11 @@ Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env, jobject instance,
 
 //    jint code = (jint) clogan_init(cache_path, dir_path, max_file, encrypt_key16, encrypt_iv16);
 
-    LOGD("JNI", "\ndir_path >>> %s\n, cache_path >>> %s\n, encrypt_key16 >>> %s\n, encrypt_iv16 >>> %s", dir_path,
+    LOGD("JNI",
+         "\ndir_path >>> %s\n, cache_path >>> %s\n, encrypt_key16 >>> %s\n, encrypt_iv16 >>> %s",
+         dir_path,
          cache_path, encrypt_key16, encrypt_iv16);
+    jint code = (jint) init_nlogger(dir_path, cache_path, encrypt_key16, encrypt_iv16);
 
     (*env)->ReleaseStringUTFChars(env, dir_path_, dir_path);
     (*env)->ReleaseStringUTFChars(env, cache_path_, cache_path);

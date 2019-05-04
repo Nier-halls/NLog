@@ -9,7 +9,19 @@ SET(SOURCE_FILE src/main/jni/nlogger_native_interface.h
         src/main/jni/nlogger_native_interface.c
         src/main/jni/nlogger_android_log.h
         src/main/jni/nlogger.h
-        src/main/jni/nlogger.c)
+        src/main/jni/nlogger.c
+        src/main/jni/nlogger_constants.h
+        src/main/jni/nlogger_file_utils.c
+        src/main/jni/nlogger_file_utils.h
+        src/main/jni/nlogger_cache.h
+        src/main/jni/nlogger_cache.c
+        src/main/jni/nlogger_json_util.h
+        src/main/jni/nlogger_json_util.c
+        src/main/jni/nlogger_utils.h
+        src/main/jni/nlogger_utils.c
+        src/main/jni/cJSON.h
+        src/main/jni/cJSON.c
+        )
 
 #find_library( # Sets the name of the path variable.
 #        log-lib

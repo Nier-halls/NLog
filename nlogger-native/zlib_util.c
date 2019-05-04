@@ -78,7 +78,7 @@ void clogan_zlib(cLogan_model *model, char *data, int data_len, int type) {
     int is_gzip = model->is_ready_gzip;
     int ret;
     //测试, 强行不做GZIP压缩 fgd
-    if (is_gzip && 0) {
+    if (is_gzip) {
         // >>>>>>>> gzip压缩的情况 >>>>>>>>>
         unsigned int have; // 这个字段干什么用的
         unsigned char out[LOGAN_CHUNK];

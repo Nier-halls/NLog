@@ -1,7 +1,7 @@
 package com.nier.nlogger
 
-import android.support.v7.app.AppCompatActivity
 import android.os.Bundle
+import android.support.v7.app.AppCompatActivity
 import android.widget.TextView
 
 class MainActivity : AppCompatActivity() {
@@ -12,7 +12,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tv_result).text = NLoggerProxy.instance.test("Nier-Automata-test")
 
         findViewById<TextView>(R.id.btn_init).setOnClickListener {
-            NLoggerProxy.instance.init(this)
+            Thread {
+                NLoggerProxy.instance.init(this)
+            }.start()
         }
 
         findViewById<TextView>(R.id.btn_open).setOnClickListener {
