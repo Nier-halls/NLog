@@ -107,6 +107,4 @@ typedef struct nlogger_struct {
 
 int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const char *encrypt_key, const char *encrypt_iv);
 
-int open_log_file(const char *log_file_name);
-
 int write_nlogger(const char *log_file_name, int flag, char *log_content, long long local_time, char *thread_name, long long thread_id, int is_main);

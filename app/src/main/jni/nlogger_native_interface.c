@@ -32,10 +32,10 @@ Java_com_nier_nlogger_NLoggerProxy_nativeOpen(JNIEnv *env, jobject instance,
 //    jint code = (jint) clogan_open(file_name);
     LOGD("JNI", "file_name: %s", file_name);
 
-    jint code = (jint) open_log_file(file_name);
+//    jint code = (jint) open_log_file(file_name);
 
     (*env)->ReleaseStringUTFChars(env, file_name_, file_name);
-    return code;
+    return 0;
 }
 
 JNIEXPORT jint JNICALL
