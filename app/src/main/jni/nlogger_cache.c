@@ -40,17 +40,16 @@ int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {
             fseek(file, 0, SEEK_END);//将文件指针移动到文件的末尾
             long file_length = ftell(file);//获取当前文件指针的位置
             //如果文件的内容少于指定的缓存大小，则覆盖'/0'直至放满为止
-            if (file_length < NLOGGER_MMAP_CACHE_SIZE) {
+            if (file_length < NLOGGER_MMAP_CACHE_SIZE || 1) {
                 char null_data[NLOGGER_MMAP_CACHE_SIZE];
                 memset(null_data, 0, NLOGGER_MMAP_CACHE_SIZE);
                 size_t written = fwrite(null_data, sizeof(char), NLOGGER_MMAP_CACHE_SIZE, file);
                 fflush(file);
-
+                LOGD(TAG, "pending data， %d, written %zd", NLOGGER_MMAP_CACHE_SIZE, written);
                 if (written == NLOGGER_MMAP_CACHE_SIZE) {
                     is_file_ok = 1;
                 } else {
-                    LOGW(TAG, "pending data failed.expect %d, written %zd", NLOGGER_MMAP_CACHE_SIZE,
-                         written);
+                    LOGW(TAG, "pending data failed.expect %d, written %zd", NLOGGER_MMAP_CACHE_SIZE, written);
                 }
             } else {
                 is_file_ok = 1;

@@ -53,7 +53,7 @@ class NLoggerProxy {
         nativeWrite(
                 "niers_log_" + System.currentTimeMillis(),
                 0,
-                "${System.currentTimeMillis()} write a log test heiheihei. 试试中文",
+                "${System.currentTimeMillis()} write a log test heiheihei 2223333 <>?. 试试中文",
                 System.currentTimeMillis(),
                 "main_nier",
                 Thread.currentThread().id,

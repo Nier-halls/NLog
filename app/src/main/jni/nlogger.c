@@ -173,8 +173,8 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     g_nlogger->data_handler.p_encrypt_key = temp_encrypt_key;
     char *temp_encrypt_iv = malloc(sizeof(char) * 16);
     memcpy(temp_encrypt_iv, encrypt_iv, sizeof(char) * 16);
-    g_nlogger->data_handler.p_encrypt_iv = temp_encrypt_iv;
-
+    g_nlogger->data_handler.p_encrypt_iv         = temp_encrypt_iv;
+    g_nlogger->data_handler.p_encrypt_iv_pending = malloc(sizeof(char) * 16);
     //初始化缓存文件，首先采用mmap缓存，失败则用内存缓存
     int init_cache_result = init_cache_nlogger(g_nlogger->cache.p_file_path, &g_nlogger->cache.p_buffer);
 
@@ -466,7 +466,7 @@ int _check_cache_healty(struct nlogger_cache_struct *cache) {
  * @return 数据的长度
  */
 size_t _malloc_and_build_json_data(int cache_type, int flag, char *log_content, long long local_time,
-                                   char *thread_name, long long thread_id, char **result_json_data) {
+                                   char *thread_name, long long thread_id, int is_main, char **result_json_data) {
     size_t result_size = 0;
 
     cJSON            *root        = cJSON_CreateObject();
@@ -480,6 +480,7 @@ size_t _malloc_and_build_json_data(int cache_type, int flag, char *log_content, 
             add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_LOCAL_TIME, local_time);
             add_item_string_nlogger(map, NLOGGER_PROTOCOL_KEY_THREAD_NAME, thread_name);
             add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_THREAD_ID, thread_id);
+            add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_MAIN_THREAD, is_main);
             inflate_json_by_map_nlogger(root, map);
             result_json = cJSON_PrintUnformatted(root);
         }
@@ -503,6 +504,322 @@ size_t _malloc_and_build_json_data(int cache_type, int flag, char *log_content, 
     return result_size;
 }
 
+int _init_data_handler(struct nlogger_data_handler_struct *data_handler) {
+
+    if (data_handler->p_stream == NULL) {
+        data_handler->p_stream = malloc(sizeof(z_stream));
+    }
+
+    if (data_handler->p_stream == NULL) {
+        return ERROR_CODE_INIT_HANDLER_MALLOC_STREAM_FAILED;
+    }
+
+    memset(data_handler->p_stream, 0, sizeof(z_stream));
+    data_handler->p_stream->zalloc = Z_NULL;
+    data_handler->p_stream->zfree  = Z_NULL;
+    data_handler->p_stream->opaque = Z_NULL;
+    int zlib_init_result = deflateInit2(
+            data_handler->p_stream, //z_stream
+            Z_BEST_COMPRESSION, // gives best compression压缩模式
+            Z_DEFLATED, // It must be Z_DEFLATED in this version of the library 写死的不用管
+            (15 + 16), //不知道干啥用的 默认15，16会加上与i个header
+            8,//默认值表明会使用较大的内存来提高速度
+            Z_DEFAULT_STRATEGY//压缩算法，影响加密比率
+    );
+    if (zlib_init_result != Z_OK) {
+        return ERROR_CODE_INIT_HANDLER_INIT_STREAM_FAILED;
+    }
+
+    data_handler->remain_data_length = 0;
+    //初始化填充iv
+    memcpy(data_handler->p_encrypt_iv_pending, data_handler->p_encrypt_iv, 16);
+    return ERROR_CODE_OK;
+}
+
+size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, unsigned char *data,
+                    size_t data_length) {
+    size_t        handled               = 0;
+    size_t        unencrypt_data_length = data_length + data_handler->remain_data_length;
+    size_t        handle_data_length    = (unencrypt_data_length / NLOGGER_AES_ENCRYPT_UNIT) * (size_t) NLOGGER_AES_ENCRYPT_UNIT;
+    size_t        remain_data_length    = unencrypt_data_length % (size_t) NLOGGER_AES_ENCRYPT_UNIT;
+    char          *curr                 = destination;
+    unsigned char handle_data[handle_data_length];
+    unsigned char *next_copy_point      = handle_data;
+
+    if (handle_data_length) {
+        size_t copy_data_length = handle_data_length - data_handler->remain_data_length;
+        if (data_handler->remain_data_length) {
+            memcpy(next_copy_point, data_handler->p_remain_data, data_handler->remain_data_length);
+            next_copy_point += data_handler->remain_data_length;
+        }
+        memcpy(next_copy_point, data, copy_data_length);
+        LOGE("encrypt", "write data >>> %zd", handle_data_length)
+        //todo encrypt
+        memcpy(destination, handle_data, handle_data_length);
+        handled += handle_data_length;
+        curr += handle_data_length;
+    }
+
+
+    if (remain_data_length) {
+        if (handle_data_length) {
+            size_t copied_data_length = handle_data_length - data_handler->remain_data_length;
+            next_copy_point = data;
+            next_copy_point += copied_data_length;
+            memcpy(data_handler->p_remain_data, next_copy_point, remain_data_length);
+        } else {
+            next_copy_point = (unsigned char *) data_handler->p_remain_data;
+            next_copy_point += data_handler->remain_data_length;
+            memcpy(next_copy_point, data, remain_data_length);
+        }
+        data_handler->remain_data_length = remain_data_length;
+
+        memcpy(curr, data_handler->p_remain_data, remain_data_length);
+        handled += remain_data_length;
+    }
+
+    return handled;
+}
+
+/**
+ * gzip压缩 + aes加密
+ * todo 把加密逻辑抽离出来
+ *
+ * @param data_handler
+ * @param destination
+ * @param source
+ * @param source_length
+ * @param type
+ * @return
+ */
+size_t _zlib_compress_and_aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, char *source,
+                                      size_t source_length, int type) {
+    size_t   handled = 0;
+    z_stream *stream = data_handler->p_stream;
+
+    unsigned char out[NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE];
+    unsigned int  have;
+//    if (type == Z_FINISH) {
+//        stream->avail_in = NULL;
+//        stream->next_in  = 0;
+//    }else{
+    stream->avail_in = (uInt) source_length;
+    stream->next_in  = (Bytef *) source;
+//    }
+    do {
+        stream->avail_out = NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE;
+        stream->next_out  = out;
+        int def_res = deflate(stream, type);
+        if (Z_STREAM_ERROR == def_res) {
+            //这里如果出现错误会导致日志错位，日志截断，怎么主动发现这个错误的日志
+            deflateEnd(stream);
+            data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
+            return (size_t) 0;
+        }
+        have = NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE - stream->avail_out;
+        LOGD("zlib_compress", " ### _zlib_compress_and_aes_encrypt , type >>> %d have >>> %d  destination >>> %ld", type, have, destination);
+//        handled = _aes_encrypt(data_handler, destination, out, have);
+        memcpy(destination, out, have);
+        destination += have;
+        handled += have;
+    } while (0 == stream->avail_out);
+
+    return handled;
+}
+
+/**
+ * 压缩数据加密
+ *
+ * @param data_handler
+ * @param destination 写入的目的地指针
+ * @param source 数据源指针
+ * @param length 源数据长度
+ *
+ * @return 写入数据的长度
+ */
+size_t _compress_and_write_data(struct nlogger_data_handler_struct *data_handler, char *destination, char *source,
+                                size_t length) {
+    size_t handled = 0;
+
+    //如果没有初始化，就先初始化一下
+    if (data_handler->state == NLOGGER_HANDLER_STATE_IDLE) {
+        int init_result = _init_data_handler(data_handler);
+        if (init_result != ERROR_CODE_OK) {
+            return (size_t) -1;
+        }
+        data_handler->state = NLOGGER_HANDLER_STATE_INIT;
+    }
+
+    //todo 压缩数据 加密数据 不一定所有数据都会写入，会有一小部分数据缓存等待下一次写入
+    handled = _zlib_compress_and_aes_encrypt(data_handler, destination, source, length, Z_SYNC_FLUSH);
+    LOGW("compress_data", "after _compress_and_write_data, handled >>> %zd", handled);
+//    handled += _zlib_compress_and_aes_encrypt(data_handler, destination +  handled, NULL, 0, Z_FINISH);
+    data_handler->state = NLOGGER_HANDLER_STATE_HANDLING;
+
+    return handled;
+}
+
+/**
+ * 结束压缩数据
+ *
+ * @param data_handler
+ * @param destination 写入的目的地指针
+ *
+ * @return 写入数据的长度
+ */
+size_t _finish_compress_data(struct nlogger_data_handler_struct *data_handler, char *destination) {
+    size_t handled = 0;
+//    char   *dest   = destination;
+
+    handled = _zlib_compress_and_aes_encrypt(data_handler, destination, NULL, 0, Z_FINISH);
+//    //下面一坨都是临时逻辑
+//    dest += handled;
+//    memcpy(dest, data_handler->p_remain_data, data_handler->remain_data_length);
+//    handled += data_handler->remain_data_length;
+    LOGW("finish_compress", "after _finish_compress_data, handled >>> %zd", handled);
+    data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
+    return handled;
+}
+
+/**
+ * 是否有必要大头
+ *
+ * @param p_content_length
+ * @param length
+ * @return
+ */
+size_t _update_content_length(char *p_content_length, unsigned int length) {
+    size_t handled = 0;
+    // 为了兼容java,采用高字节序
+    *p_content_length = length >> 24;
+    p_content_length++;
+    handled++;
+    *p_content_length = length >> 16;
+    p_content_length++;
+    handled++;
+    *p_content_length = length >> 8;
+    p_content_length++;
+    handled++;
+    *p_content_length = length;
+    handled++;
+
+    LOGD("up_cont_len", "length >>> %d ", length);
+//    LOGD("up_cont_len", "will write >>> %c , %c , %c , %c", length >> 24, length >> 16, length >> 8, length >> 0);
+//
+//    *p_content_length = '6';
+//    p_content_length++;
+//    handled++;
+//    *p_content_length = '6';
+//    p_content_length++;
+//    handled++;
+//    *p_content_length = '6';
+//    p_content_length++;
+//    handled++;
+//    *p_content_length = '6';
+//    handled++;
+
+
+    return handled;
+}
+
+/**
+ * 初始化日志，标志开始一次压缩数据
+ *
+ * 插入 head tag
+ * 记录 p_content_length 指针
+ *
+ * @return
+ */
+size_t _write_section_head(struct nlogger_cache_struct *cache) {
+    size_t handled  = 0;
+    char   *current = cache->p_next_write;
+
+    *current = NLOGGER_MMAP_CACHE_CONTENT_HEAD_TAG;
+    current++;
+    handled++;
+
+    cache->p_content_length = current;
+    //第一次写入长度字段（目前占位4byte）
+    size_t update_handled = _update_content_length(cache->p_content_length, cache->content_length);
+    LOGD("write_section_head", "_update_content_length result >>> %zd", update_handled);
+    current += update_handled;
+    handled += update_handled;
+
+    cache->p_next_write = current;
+    return handled;
+}
+
+
+/**
+ * 结束一次压缩数据
+ *
+ * 在末尾插入解为标志符号
+ * 更新content_length到p_content_length指针处
+ *
+ * @return
+ */
+size_t _write_section_tail(struct nlogger_cache_struct *cache) {
+    size_t handled = 0;
+    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_TAIL_TAG;
+    cache->p_next_write++;
+    handled++;
+    //重新更新一次
+    _update_content_length(cache->p_content_length, cache->content_length);
+    return handled;
+}
+
+/**
+ * 写入数据片段到缓存中
+ */
+size_t _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *segment,
+                   size_t segment_length) {
+    char *write_data = malloc(segment_length + 1);
+    memset(write_data, 0, segment_length + 1);
+    memcpy(write_data, segment, segment_length);
+    LOGD("write_segment", "write segment data length >>> %zd , content >>> %s", segment_length, write_data);
+    free(write_data);
+    //中间是要加一层数据压缩和加密的，这一层因该怎么加
+
+    if (data_handler->state == NLOGGER_HANDLER_STATE_IDLE) {
+        LOGD("real_write", "before write section before >>> %ld", cache->p_next_write);
+        _write_section_head(cache);
+        LOGD("real_write", "before write section after >>> %ld", cache->p_next_write);
+    }
+    size_t handled = _compress_and_write_data(data_handler, cache->p_next_write, segment, segment_length);
+    LOGD("real_write", "_compress_and_write_data finish 111 >>> %ld", cache->p_next_write);
+    cache->p_next_write += handled;
+    //todo 判断是否需要结束本次压缩
+    LOGD("real_write", "_compress_and_write_data finish 222 >>> %ld", cache->p_next_write);
+    handled = _zlib_compress_and_aes_encrypt(data_handler, cache->p_next_write, NULL, 0, Z_FINISH);
+//    handled += _finish_compress_data(data_handler, cache->p_next_write);
+    _write_section_tail(cache);
+    _update_content_length(cache->p_content_length, (int) handled);
+    //todo 判断是否要flush缓存中的数据
+    LOGD("real_write", "remain data length >>> %ld", data_handler->remain_data_length);
+    return handled;
+}
+
+/**
+ * 写入数据到缓存中
+ */
+size_t _write_data(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *data,
+                   size_t data_length) {
+    size_t handled     = 0;
+    char   *next_write = data;
+    int    segment_num = (int) (data_length / NLOGGER_WRITE_SEGMENT_LENGTH);
+    size_t remain      = data_length % NLOGGER_WRITE_SEGMENT_LENGTH;
+    int    i           = 0;
+    for (i = 0; i < segment_num; ++i) {
+        handled += _real_write(cache, data_handler, next_write, NLOGGER_WRITE_SEGMENT_LENGTH);
+        next_write += NLOGGER_WRITE_SEGMENT_LENGTH;
+    }
+    if (remain != 0) {
+        handled += _real_write(cache, data_handler, next_write, remain);
+    }
+    return handled;
+
+}
+
 int write_nlogger(const char *log_file_name, int flag, char *log_content, long long local_time, char *thread_name,
                   long long thread_id, int is_main) {
     if (g_nlogger == NULL || g_nlogger->state == NLOGGER_STATE_ERROR) {
@@ -510,14 +827,14 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     }
 
     //step1 检查日志文件
-    int result = _check_log_file_healthy(&g_nlogger->log, log_file_name);
+    int check_log_result = _check_log_file_healthy(&g_nlogger->log, log_file_name);
 
-    if (result <= 0) {
-        return result;
+    if (check_log_result <= 0) {
+        return check_log_result;
     }
 
     //第一次创建或者打开日志文件，需要重新指定当前mmap缓存指向的日志文件，方便下次启动将缓存flush到指定的日志文件中
-    if (result == ERROR_CODE_NEW_LOG_FILE_OPENED) {
+    if (check_log_result == ERROR_CODE_NEW_LOG_FILE_OPENED) {
         int init_cache_result = _init_cache_on_new_log_file_opened(log_file_name, &g_nlogger->cache);
         if (init_cache_result != ERROR_CODE_OK) {
             return init_cache_result;
@@ -536,14 +853,21 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     }
 
     //test debug
-    _print_current_nlogger();
+//    _print_current_nlogger();
 
     //step3 组装日志
-    char   *result_json_log;
+    char   *result_json_data;
     size_t data_size       = _malloc_and_build_json_data(g_nlogger->cache.cache_mode, flag, log_content, local_time,
-                                                         thread_name, thread_id, &result_json_log);
+                                                         thread_name, thread_id, is_main, &result_json_data);
+    if (data_size == 0 || result_json_data == NULL) {
+        return ERROR_CODE_BUILD_LOG_BLOCK_FAILED;
+    }
+
     LOGD("write", "_malloc_and_build_json_data data size >>> %zd ", data_size);
-    LOGD("write", "_malloc_and_build_json_data resutl data >>> %s ", result_json_log)
+    LOGD("write", "_malloc_and_build_json_data resutl data >>> %s ", result_json_data)
+
+    size_t result = _write_data(&g_nlogger->cache, &g_nlogger->data_handler, result_json_data, data_size);
+    LOGE("write", "_write_data return finish. >>> %zd", result);
 
     return ERROR_CODE_OK;
 }
