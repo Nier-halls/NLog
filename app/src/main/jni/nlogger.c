@@ -486,10 +486,12 @@ size_t _malloc_and_build_json_data(int cache_type, int flag, char *log_content, 
         }
 
         if (result_json != NULL) {
-            size_t content_length = strlen(result_json) + 1; //加上末尾的换行符\n
-            char   *log_data      = malloc(content_length);
-            memset(log_data, 0, content_length);
-            memcpy(log_data, result_json, strlen(result_json));
+            size_t content_length = strlen(result_json);
+            size_t final_length   = content_length + 1; //加上末尾的换行符\n
+            char   *log_data      = malloc(final_length);
+            memset(log_data, 0, final_length);
+            memcpy(log_data, result_json, content_length);
+            memcpy(log_data + content_length, "\n", 1);
             *result_json_data = log_data;
             //这里是否有必要释放内存
             free(result_json);
@@ -652,8 +654,10 @@ size_t _compress_and_write_data(struct nlogger_data_handler_struct *data_handler
 
     //todo 压缩数据 加密数据 不一定所有数据都会写入，会有一小部分数据缓存等待下一次写入
     handled = _zlib_compress_and_aes_encrypt(data_handler, destination, source, length, Z_SYNC_FLUSH);
-    LOGW("compress_data", "after _compress_and_write_data, handled >>> %zd", handled);
-//    handled += _zlib_compress_and_aes_encrypt(data_handler, destination +  handled, NULL, 0, Z_FINISH);
+    LOGW("compress_data", "after _compress_and_write_data, handled >>> %zd , addr >>> %ld", handled, destination);
+//    char *next = destination + handled;
+//    LOGW("compress_data", "after _compress_and_write_data, handled >>> %zd , addr >>> %ld", handled, next);
+//    handled += _zlib_compress_and_aes_encrypt(data_handler, next, NULL, 0, Z_FINISH);
     data_handler->state = NLOGGER_HANDLER_STATE_HANDLING;
 
     return handled;
@@ -773,6 +777,7 @@ size_t _write_section_tail(struct nlogger_cache_struct *cache) {
  */
 size_t _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *segment,
                    size_t segment_length) {
+
     char *write_data = malloc(segment_length + 1);
     memset(write_data, 0, segment_length + 1);
     memcpy(write_data, segment, segment_length);
@@ -785,18 +790,37 @@ size_t _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handl
         _write_section_head(cache);
         LOGD("real_write", "before write section after >>> %ld", cache->p_next_write);
     }
-    size_t handled = _compress_and_write_data(data_handler, cache->p_next_write, segment, segment_length);
+
+    size_t written_content_length = 0;
+    size_t action_handled_length  = 0;
+
+    action_handled_length = _compress_and_write_data(data_handler, cache->p_next_write, segment, segment_length);
+    cache->p_next_write += action_handled_length;
+
     LOGD("real_write", "_compress_and_write_data finish 111 >>> %ld", cache->p_next_write);
-    cache->p_next_write += handled;
+    written_content_length += action_handled_length;
+
+//    void *temp1 = cache->p_next_write + handled;
+//    void *temp2 = cache->p_next_write;
+//
+//    if (temp1 == temp2) {
+//        LOGE("real_write", "temp1 == temp2 !!!   temp1 = %p, temp2 = %p", temp1, temp2)
+//    } else {
+//        LOGE("real_write", "temp1 != temp2 !!!   temp1 = %p, temp2 = %p", temp1, temp2)
+//    }
+
     //todo 判断是否需要结束本次压缩
     LOGD("real_write", "_compress_and_write_data finish 222 >>> %ld", cache->p_next_write);
-    handled = _zlib_compress_and_aes_encrypt(data_handler, cache->p_next_write, NULL, 0, Z_FINISH);
-//    handled += _finish_compress_data(data_handler, cache->p_next_write);
+    action_handled_length = _finish_compress_data(data_handler, cache->p_next_write);
+    cache->p_next_write += action_handled_length;
+    written_content_length += action_handled_length;
+
     _write_section_tail(cache);
-    _update_content_length(cache->p_content_length, (int) handled);
+
+    _update_content_length(cache->p_content_length, (int) written_content_length);
     //todo 判断是否要flush缓存中的数据
     LOGD("real_write", "remain data length >>> %ld", data_handler->remain_data_length);
-    return handled;
+    return written_content_length;
 }
 
 /**

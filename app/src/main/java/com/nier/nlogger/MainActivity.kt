@@ -12,9 +12,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tv_result).text = NLoggerProxy.instance.test("Nier-Automata-test")
 
         findViewById<TextView>(R.id.btn_init).setOnClickListener {
-            Thread {
-                NLoggerProxy.instance.init(this)
-            }.start()
+            NLoggerProxy.instance.init(this)
         }
 
         findViewById<TextView>(R.id.btn_open).setOnClickListener {
@@ -31,6 +29,7 @@ class MainActivity : AppCompatActivity() {
             NLoggerProxy.instance.flush()
         }
 
-
+        NLoggerProxy.instance.init(this)
+        NLoggerProxy.instance.write("")
     }
 }
