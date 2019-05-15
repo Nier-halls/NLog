@@ -78,7 +78,7 @@ Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env,
 
 JNIEXPORT jint JNICALL
 Java_com_nier_nlogger_NLoggerProxy_nativeFlush(JNIEnv *env, jobject instance) {
-    clogan_flush();
+    flush_nlogger();
 }
 
 JNIEXPORT jstring JNICALL

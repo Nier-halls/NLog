@@ -66,7 +66,7 @@ typedef struct nlogger_cache_struct {
  */
 typedef struct nlogger_log_struct {
     char *p_dir; //日志文件存放目录
-    char *p_path; //日志文件路径
+    char *p_path; //日志文件路径 (包含日志名以及日志路径)
     char *p_name; //日志文件名
     FILE *p_file; //日志文件
     int  state; //日志文件的状态
