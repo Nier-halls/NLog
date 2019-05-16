@@ -618,7 +618,7 @@ void insert_header_file_clogan(cLogan_model *loganModel) {
         temp_model.total_len = 0;
         temp_model.last_point = temp_memory;
 		//数据内存缓存（是头文件json字符传的10倍大小）
-		//初始换内存 head_tag[1] + content_length[4] last_point指向content_length之后 
+		//初始换内存 head_tag[1] + section_length[4] last_point指向content_length之后
         restore_last_position_clogan(&temp_model);
 		//压缩加密数据
         clogan_zlib_compress(&temp_model, data->data, data->data_len);

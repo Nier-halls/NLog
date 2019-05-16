@@ -42,11 +42,11 @@ typedef struct nlogger_cache_struct {
     char *p_buffer;//缓存的内存地址指针
     char *p_next_write;//缓存当前写入的地址指针
 
-    char         *p_length;//指向缓存内容大小区域的指针
-    unsigned int length;//缓存内容大小
+    char         *p_content_length;//指向缓存内容大小区域的指针
+    unsigned int content_length;//缓存内容大小
 
-    char         *p_content_length;//指向内容大小的指针（不包含内容的headTag、tailTag、cacheContentLength的大小）
-    unsigned int content_length;//内容大小
+    char         *p_section_length;//指向内容大小的指针（不包含内容的headTag、tailTag、cacheContentLength的大小）
+    unsigned int section_length;//内容大小
 
     int cache_mode;//当前缓存的模式1为mmap，2为memory
 };

@@ -39,6 +39,9 @@ int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {
         if (file != NULL) {
             fseek(file, 0, SEEK_END);//将文件指针移动到文件的末尾
             long file_length = ftell(file);//获取当前文件指针的位置
+
+            LOGE(TAG, "mmap file length >>> %ld", file_length);
+
             //如果文件的内容少于指定的缓存大小，则覆盖'/0'直至放满为止
             if (file_length < NLOGGER_MMAP_CACHE_SIZE || 1) {
                 char null_data[NLOGGER_MMAP_CACHE_SIZE];
