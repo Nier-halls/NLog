@@ -16,6 +16,8 @@
 #include "nlogger_cache.h"
 #include "nlogger_json_util.h"
 #include "nlogger_utils.h"
+#include "nlogger_protocol.h"
+#include "nlogger_data_handler.h"
 
 
 static nlogger *g_nlogger;
@@ -169,28 +171,29 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     LOGD("init", "finish create log file dir >>> %s ", final_log_file_dir)
     g_nlogger->log.p_dir = final_log_file_dir;
 
-    //配置加密相关的参数
-    char *temp_encrypt_key = malloc(sizeof(char) * 16);
-    memcpy(temp_encrypt_key, encrypt_key, sizeof(char) * 16);
-    g_nlogger->data_handler.p_encrypt_key = temp_encrypt_key;
-    char *temp_encrypt_iv = malloc(sizeof(char) * 16);
-    memcpy(temp_encrypt_iv, encrypt_iv, sizeof(char) * 16);
-    g_nlogger->data_handler.p_encrypt_iv         = temp_encrypt_iv;
-    g_nlogger->data_handler.p_encrypt_iv_pending = malloc(sizeof(char) * 16);
+//    //配置加密相关的参数
+//    char *temp_encrypt_key = malloc(sizeof(char) * 16);
+//    memcpy(temp_encrypt_key, encrypt_key, sizeof(char) * 16);
+//    g_nlogger->data_handler.p_encrypt_key = temp_encrypt_key;
+//    char *temp_encrypt_iv = malloc(sizeof(char) * 16);
+//    memcpy(temp_encrypt_iv, encrypt_iv, sizeof(char) * 16);
+//    g_nlogger->data_handler.p_encrypt_iv         = temp_encrypt_iv;
+//    g_nlogger->data_handler.p_encrypt_iv_pending = malloc(sizeof(char) * 16);
+    init_encrypt(&g_nlogger->data_handler, encrypt_key, encrypt_iv);
 
     //初始化缓存文件，首先采用mmap缓存，失败则用内存缓存
-    int init_cache_result = init_cache_nlogger(g_nlogger->cache.p_file_path, &g_nlogger->cache.p_buffer);
+    int create_cache_result = create_cache_nlogger(g_nlogger->cache.p_file_path, &g_nlogger->cache.p_buffer);
 
-    if (init_cache_result == NLOGGER_INIT_CACHE_FAILED) {
+    if (create_cache_result == NLOGGER_INIT_CACHE_FAILED) {
         g_nlogger->state = NLOGGER_STATE_ERROR;
     } else {
         //标记当前初始化阶段成功，避免重复初始化
         g_nlogger->state            = NLOGGER_STATE_INIT;
-        g_nlogger->cache.cache_mode = init_cache_result;
+        g_nlogger->cache.cache_mode = create_cache_result;
     }
     _print_current_nlogger();
 
-    LOGD("init", "init cache result >>> %d.", init_cache_result);
+    LOGD("init", "init cache result >>> %d.", create_cache_result);
 
     //todo try flush cache log
     return ERROR_CODE_OK;
@@ -251,63 +254,16 @@ int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name
     }
     LOGD("check", "_config_log_file_name finish. log file name >>> %s, log file path >>> %s.", log->p_name,
          log->p_path);
+
+
+    if (g_nlogger->log.p_dir == NULL) {
+        return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
+    }
+
+
     return ERROR_CODE_OK;
 }
 
-/**
- * 写入文件名到mmap中
- * 如果写入文件名失败，则采取内存映射（此时mmap的优势已经没有了，如果重新打开mmap中的内容不知道恢复到哪里去）
- *
- * 此方法会赋值
- *
- */
-size_t _write_mmap_header(char *cache_buffer, const char *log_file_name) {
-    size_t           write_size   = (size_t) -1;
-    cJSON            *root        = cJSON_CreateObject();
-    json_map_nlogger *map         = create_json_map_nlogger();
-    char             *result_json = NULL;
-    if (root != NULL) {
-        if (map != NULL) {
-            add_item_number_nlogger(map, NLOGGER_MMAP_CACHE_HEADER_KEY_VERSION, NLOGGER_VERSION);
-            add_item_number_nlogger(map, NLOGGER_MMAP_CACHE_HEADER_KEY_DATE, system_current_time_millis_nlogger());
-            add_item_string_nlogger(map, NLOGGER_MMAP_CACHE_HEADER_KEY_FILE, log_file_name);
-            inflate_json_by_map_nlogger(root, map);
-            result_json = cJSON_PrintUnformatted(root);
-        }
-
-        if (result_json != NULL) {
-            LOGD("mmap_header", "build json finished. header >>> %s ", result_json);
-            size_t content_length = strlen(result_json) + 1;
-            char   *mmap_buffer   = cache_buffer;
-            *mmap_buffer = NLOGGER_MMAP_CACHE_HEADER_HEAD_TAG;
-            write_size++;
-            mmap_buffer++;
-
-            *mmap_buffer = content_length;
-            write_size++;
-            mmap_buffer++;
-
-            *mmap_buffer = content_length >> 8;
-            write_size++;
-            mmap_buffer++;
-
-            memcpy(mmap_buffer, result_json, content_length);
-            mmap_buffer = mmap_buffer + content_length;
-            write_size += content_length;
-
-            *mmap_buffer = NLOGGER_MMAP_CACHE_HEADER_TAIL_TAG;
-            write_size++;
-
-            //这里是否有必要释放内存
-            free(result_json);
-        }
-        cJSON_Delete(root);
-    }
-    if (map != NULL) {
-        delete_json_map_nlogger(map);
-    }
-    return write_size;
-}
 
 /**
  * 检查日志文件的状态
@@ -415,11 +371,11 @@ int _check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file
  * @param cache
  * @return
  */
-int _config_cache_on_new_log_file_opened(const char *log_file_name, struct nlogger_cache_struct *cache) {
+int _init_cache_on_new_log_file_opened(struct nlogger_cache_struct *cache, const char *log_file_name) {
 
     if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE) {
         //直接忽略旧的日志头，覆盖写入新的日志头，指定当前mmap文件映射的log file name
-        size_t written_header_length = _write_mmap_header(cache->p_buffer, log_file_name);
+        size_t written_header_length = write_mmap_cache_header(cache->p_buffer, log_file_name);
 
         if (written_header_length > 0) {
             cache->p_content_length = cache->p_buffer + written_header_length;
@@ -430,7 +386,7 @@ int _config_cache_on_new_log_file_opened(const char *log_file_name, struct nlogg
                 munmap(cache->p_buffer, NLOGGER_MMAP_CACHE_SIZE);
             }
             //路径传空，强制Memory模式缓存
-            if (NLOGGER_INIT_CACHE_FAILED == init_cache_nlogger(NULL, &cache->p_buffer)) {
+            if (NLOGGER_INIT_CACHE_FAILED == create_cache_nlogger(NULL, &cache->p_buffer)) {
                 return ERROR_CODE_INIT_CACHE_FAILED;
             }
         }
@@ -463,7 +419,7 @@ int _check_cache_healthy(struct nlogger_cache_struct *cache) {
             munmap(cache->p_buffer, NLOGGER_MMAP_CACHE_SIZE);
         }
         //路径传空，强制Memory缓存
-        if (NLOGGER_INIT_CACHE_FAILED == init_cache_nlogger(NULL, &cache->p_buffer)) {
+        if (NLOGGER_INIT_CACHE_FAILED == create_cache_nlogger(NULL, &cache->p_buffer)) {
             return ERROR_CODE_INIT_CACHE_FAILED;
         }
         cache->p_content_length = cache->p_buffer;
@@ -482,294 +438,13 @@ int _check_cache_healthy(struct nlogger_cache_struct *cache) {
 }
 
 /**
- * 申请内存并且组装一个json数据
- *
- * @param cache_type 缓存的类型 1:MMAP 2:MEMORY
- * @param flag 日志类型
- * @param log_content 日志内容
- * @param local_time 日志生成的时间
- * @param thread_name 线程的名称
- * @param thread_id 线程id
- * @param result_json_data 用于返回数据的指针
- *
- * @return 数据的长度
- */
-size_t _malloc_and_build_json_data(int cache_type, int flag, char *log_content, long long local_time,
-                                   char *thread_name, long long thread_id, int is_main, char **result_json_data) {
-    size_t result_size = 0;
-
-    cJSON            *root        = cJSON_CreateObject();
-    json_map_nlogger *map         = create_json_map_nlogger();
-    char             *result_json = NULL;
-    if (root != NULL) {
-        if (map != NULL) {
-            add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_CACHE_TYPE, cache_type);
-            add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_FLAG, flag);
-            add_item_string_nlogger(map, NLOGGER_PROTOCOL_KEY_CONTENT, log_content);
-            add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_LOCAL_TIME, local_time);
-            add_item_string_nlogger(map, NLOGGER_PROTOCOL_KEY_THREAD_NAME, thread_name);
-            add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_THREAD_ID, thread_id);
-            add_item_number_nlogger(map, NLOGGER_PROTOCOL_KEY_MAIN_THREAD, is_main);
-            inflate_json_by_map_nlogger(root, map);
-            result_json = cJSON_PrintUnformatted(root);
-        }
-
-        if (result_json != NULL) {
-            size_t content_length = strlen(result_json);
-            size_t final_length   = content_length + 1; //加上末尾的换行符\n
-            char   *log_data      = malloc(final_length);
-            memset(log_data, 0, final_length);
-            memcpy(log_data, result_json, content_length);
-            memcpy(log_data + content_length, "\n", 1);
-            *result_json_data = log_data;
-            //这里是否有必要释放内存
-            free(result_json);
-            result_size = content_length;
-        }
-        cJSON_Delete(root);
-    }
-    if (map != NULL) {
-        delete_json_map_nlogger(map);
-    }
-
-    return result_size;
-}
-
-/**
- * 初始化zlib相关的压缩配置
- *
- * @param data_handler
- * @return
- */
-int _init_zlib(struct nlogger_data_handler_struct *data_handler) {
-
-    if (data_handler->p_stream == NULL) {
-        data_handler->p_stream = malloc(sizeof(z_stream));
-    }
-
-    if (data_handler->p_stream == NULL) {
-        return ERROR_CODE_INIT_HANDLER_MALLOC_STREAM_FAILED;
-    }
-
-    memset(data_handler->p_stream, 0, sizeof(z_stream));
-    data_handler->p_stream->zalloc = Z_NULL;
-    data_handler->p_stream->zfree  = Z_NULL;
-    data_handler->p_stream->opaque = Z_NULL;
-    int zlib_init_result = deflateInit2(
-            data_handler->p_stream, //z_stream
-            Z_BEST_COMPRESSION, // gives best compression压缩模式
-            Z_DEFLATED, // It must be Z_DEFLATED in this version of the library 写死的不用管
-            (15 + 16), //不知道干啥用的 默认15，16会加上与i个header
-            8,//默认值表明会使用较大的内存来提高速度
-            Z_DEFAULT_STRATEGY//压缩算法，影响加密比率
-    );
-    if (zlib_init_result != Z_OK) {
-        return ERROR_CODE_INIT_HANDLER_INIT_STREAM_FAILED;
-    }
-
-    data_handler->remain_data_length = 0;
-    //初始化填充iv
-    memcpy(data_handler->p_encrypt_iv_pending, data_handler->p_encrypt_iv, 16);
-    return ERROR_CODE_OK;
-}
-
-/**
- * 进行aes加密，目前没有实现，只是一次copy
- *
- * @param data_handler
- * @param destination
- * @param data
- * @param data_length
- * @return
- */
-size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, unsigned char *data,
-                    size_t data_length) {
-    size_t        handled               = 0;
-    size_t        unencrypt_data_length = data_length + data_handler->remain_data_length;
-    size_t        handle_data_length    = (unencrypt_data_length / NLOGGER_AES_ENCRYPT_UNIT) * (size_t) NLOGGER_AES_ENCRYPT_UNIT;
-    size_t        remain_data_length    = unencrypt_data_length % (size_t) NLOGGER_AES_ENCRYPT_UNIT;
-//    char          *curr                 = destination;
-    unsigned char handle_data[handle_data_length];
-    unsigned char *next_copy_point      = handle_data;
-
-    if (handle_data_length) {
-        size_t copy_data_length = handle_data_length - data_handler->remain_data_length;
-        if (data_handler->remain_data_length) {
-            memcpy(next_copy_point, data_handler->p_remain_data, data_handler->remain_data_length);
-            next_copy_point += data_handler->remain_data_length;
-        }
-        memcpy(next_copy_point, data, copy_data_length);
-        LOGE("encrypt", "write data >>> %zd", handle_data_length)
-        //todo encrypt
-        memcpy(destination, handle_data, handle_data_length);
-        handled += handle_data_length;
-//        curr += handle_data_length;
-    }
-
-
-    if (remain_data_length) {
-        if (handle_data_length) {
-            size_t copied_data_length = handle_data_length - data_handler->remain_data_length;
-            next_copy_point = data;
-            next_copy_point += copied_data_length;
-            memcpy(data_handler->p_remain_data, next_copy_point, remain_data_length);
-        } else {
-            next_copy_point = (unsigned char *) data_handler->p_remain_data;
-            next_copy_point += data_handler->remain_data_length;
-            memcpy(next_copy_point, data, remain_data_length);
-        }
-        data_handler->remain_data_length = remain_data_length;
-//
-//        memcpy(curr, data_handler->p_remain_data, remain_data_length);
-//        handled += remain_data_length;
-    }
-
-    return handled;
-}
-
-/**
- * gzip压缩 + aes加密
- * todo 把加密逻辑抽离出来
- *
- * @param data_handler
- * @param destination
- * @param source
- * @param source_length
- * @param type
- * @return
- */
-size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, char *source,
-                                   size_t source_length, int type) {
-    size_t   handled = 0;
-    z_stream *stream = data_handler->p_stream;
-
-    unsigned char out[NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE];
-    unsigned int  have;
-    stream->avail_in = (uInt) source_length;
-    stream->next_in  = (Bytef *) source;
-    do {
-        stream->avail_out = NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE;
-        stream->next_out  = out;
-        int def_res = deflate(stream, type);
-        if (Z_STREAM_ERROR == def_res) {
-            //这里如果出现错误会导致日志错位，日志截断，怎么主动发现这个错误的日志
-            deflateEnd(stream);
-            data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
-            return (size_t) 0;
-        }
-        have = NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE - stream->avail_out;
-        handled += _aes_encrypt(data_handler, destination, out, have);
-//        memcpy(destination, out, have);
-        destination += have;
-//        handled += have;
-    } while (0 == stream->avail_out);
-
-    return handled;
-}
-
-/**
- * 压缩数据加密
- *
- * @param data_handler
- * @param destination 写入的目的地指针
- * @param source 数据源指针
- * @param length 源数据长度
- *
- * @return 写入数据的长度
- */
-size_t _compress_and_write_data(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t length) {
-
-    size_t handled = 0;
-    //todo 压缩数据 加密数据 不一定所有数据都会写入，会有一小部分数据缓存等待下一次写入
-    handled = _zlib_compress_with_encrypt(data_handler, destination, source, length, Z_SYNC_FLUSH);
-    LOGW("compress_data", "after compress_and_write_data, handled >>> %zd", handled);
-    data_handler->state = NLOGGER_HANDLER_STATE_HANDLING;
-    return handled;
-}
-
-/**
- * 结束压缩数据
- *
- * @param data_handler
- * @param destination 写入的目的地指针
- *
- * @return 写入数据的长度
- */
-size_t _finish_compress_data(struct nlogger_data_handler_struct *data_handler, char *destination) {
-    size_t handled = 0;
-    handled = _zlib_compress_with_encrypt(data_handler, destination, NULL, 0, Z_FINISH);
-    deflateEnd(data_handler->p_stream);
-    destination += handled;
-    if (data_handler->remain_data_length > 0) {
-        LOGD("finish_compress", "push remain data to cache remain_length >>> %zd", data_handler->remain_data_length)
-        char remain[NLOGGER_AES_ENCRYPT_UNIT];
-        memset(remain, '6', NLOGGER_AES_ENCRYPT_UNIT);
-        memcpy(remain, data_handler->p_remain_data, data_handler->remain_data_length);
-        //todo encrypt data
-        memcpy(destination, remain, NLOGGER_AES_ENCRYPT_UNIT);
-        data_handler->remain_data_length = 0;
-        handled += NLOGGER_AES_ENCRYPT_UNIT;
-    }
-    //todo 关于remain_data写入以及delete_end等收尾工作
-    return handled;
-}
-
-
-/**
- * 更新内存中的压缩数据段的长度到缓存中
- *
- * @param p_content_length
- * @param length
- * @return
- */
-size_t _update_section_length(char *section_length, unsigned int length) {
-    size_t handled = 0;
-    // 为了兼容java,采用高字节序
-    *section_length = length >> 24;
-    section_length++;
-    handled++;
-    *section_length = length >> 16;
-    section_length++;
-    handled++;
-    *section_length = length >> 8;
-    section_length++;
-    handled++;
-    *section_length = length;
-    handled++;
-    LOGD("up_sect_len", "_update_section_length length >>> %d ", length);
-    return handled;
-}
-
-/**
- * 更新内存中的日志体的长度
- *
- * @param content_length
- * @param length
- * @return
- */
-size_t _update_content_length(char *content_length, unsigned int length) {
-    size_t handled = 0;
-    // 为了兼容java,采用高字节序
-    *content_length = length >> 0;
-    content_length++;
-    handled++;
-    *content_length = length >> 8;
-    content_length++;
-    handled++;
-    *content_length = length >> 16;
-    handled++;
-    LOGD("up_cont_len", "_update_content_length length >>> %d ", length);
-    return handled;
-}
-
-/**
  * 同时更新content的长度和section的长度到缓存中
  *
  * @param cache
  */
 void _update_length(struct nlogger_cache_struct *cache) {
-    _update_section_length(cache->p_section_length, cache->section_length);
-    _update_content_length(cache->p_content_length, cache->content_length);
+    update_cache_section_length(cache->p_section_length, cache->section_length);
+    update_cache_content_length(cache->p_content_length, cache->content_length);
 }
 
 /**
@@ -802,7 +477,7 @@ int _check_can_end_section(struct nlogger_data_handler_struct *data_handler, siz
 int _try_start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
     if (data_handler->state == NLOGGER_HANDLER_STATE_IDLE) {
         //如果没有初始化，就先初始化一下
-        int init_result = _init_zlib(data_handler);
+        int init_result = init_zlib(data_handler);
         if (init_result != ERROR_CODE_OK) {
             return init_result;
         }
@@ -832,7 +507,7 @@ int _try_start_new_section(struct nlogger_data_handler_struct *data_handler, str
 int _try_end_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
     if (data_handler->state == NLOGGER_HANDLER_STATE_HANDLING) {
         //结束一次压缩流程，并且更新length，结束的时候会写入一些尾部标志位
-        size_t finish_compressed_length = _finish_compress_data(data_handler, cache->p_next_write);
+        size_t finish_compressed_length = finish_compress_data(data_handler, cache->p_next_write);
         cache->p_next_write += finish_compressed_length;
         cache->section_length += finish_compressed_length;
         cache->content_length += finish_compressed_length;
@@ -857,7 +532,7 @@ int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
 
     LOGD("real_write", "start _real_write cache->p_next_write >>> %ld", cache->p_next_write);
     //加密压缩数据，尽量不去依赖缓存相关数据结构
-    size_t compressed_length = _compress_and_write_data(data_handler, cache->p_next_write, segment, segment_length);
+    size_t compressed_length = compress_and_write_data(data_handler, cache->p_next_write, segment, segment_length);
     if (compressed_length < 0) {
         return ERROR_CODE_COMPRESS_FAILED;
     }
@@ -917,7 +592,6 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
         return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
     }
 
-
     //step1 检查缓存状态
     int check_cache_result = _check_cache_healthy(&g_nlogger->cache);
     if (check_cache_result <= 0) {
@@ -940,23 +614,30 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     //step2.1 第一次创建或者打开日志文件，需要重新指定当前mmap缓存指向的日志文件
     //方便下次启动将缓存flush到指定的日志文件中
     if (check_log_result == ERROR_CODE_NEW_LOG_FILE_OPENED) {
-        int init_cache_result = _config_cache_on_new_log_file_opened(log_file_name, &g_nlogger->cache);
+        int init_cache_result = _init_cache_on_new_log_file_opened(&g_nlogger->cache, log_file_name);
         if (init_cache_result != ERROR_CODE_OK) {
             return init_cache_result;
         }
     }
 
     //step3 组装日志
-    char   *result_json_data;
-    size_t data_size     = _malloc_and_build_json_data(g_nlogger->cache.cache_mode, flag, log_content, local_time,
-                                                       thread_name, thread_id, is_main, &result_json_data);
-    if (data_size == 0 || result_json_data == NULL) {
+    char *result_json_data;
+    int  build_result;
+    build_result = malloc_and_build_log_json_data(g_nlogger->cache.cache_mode, flag, log_content, local_time,
+                                                  thread_name, thread_id, is_main, &result_json_data);
+    if (build_result != ERROR_CODE_OK || result_json_data == NULL) {
+        return build_result;
+    }
+
+    size_t log_json_data_length = strlen(result_json_data) + 1;
+    if (log_json_data_length <= 1) {
         return ERROR_CODE_BUILD_LOG_BLOCK_FAILED;
     }
-    LOGI("write", "raw log data size >>> %zd, log data >>> %s ", data_size, result_json_data)
+
+    LOGI("write", "raw log data size >>> %zd, log data >>> %s ", log_json_data_length, result_json_data)
 
     //step4 分段压缩写入
-    int result = _write_data(&g_nlogger->cache, &g_nlogger->data_handler, result_json_data, data_size);
+    int result = _write_data(&g_nlogger->cache, &g_nlogger->data_handler, result_json_data, log_json_data_length);
 
     return result;
 }
@@ -976,114 +657,60 @@ int _reset_cache_and_data_handler() {
 }
 
 /**
- * 解析mmap缓存文件
- * todo 分解开
- *
- * @return
+ * 解析mmap缓存的header，根据header来
+ * 初始化缓存的几个重要指针，以及返回 日志名 指针
+ * 
+ * @param cache 
+ * @param file_name 
+ * @return 
  */
-int _parse_mmap_cache_head(struct nlogger_cache_struct *cache, char **file_name) {
-    char length_array[4];
-    memset(length_array, 0, 4);
-    char *mmap_buffer = cache->p_buffer;
-    //检查mmap缓存地址是否有效
-    if (mmap_buffer == NULL) {
-        return ERROR_CODE_INVALID_BUFFER_POINT_ON_PARSE_MMAP_HEADER;
-    }
-    //检查协议头是否正确
-    if (*mmap_buffer != NLOGGER_MMAP_CACHE_HEADER_HEAD_TAG) {
-        return ERROR_CODE_INVALID_HEAD_OR_TAIL_TAG_ON_PARSE_MMAP_HEADER;
-    }
-    mmap_buffer++;
-    length_array[0] = *mmap_buffer;
-    mmap_buffer++;
-    length_array[1] = *mmap_buffer;
-    mmap_buffer++;
-    adjust_byte_order_nlogger(length_array);
-    size_t header_length = (size_t) *((int *) length_array);
-    LOGD("parse_mmap_h", "parse get header length >>> %zd", header_length)
-
-
-    //检查头的大小是否有效（是否有必要给头加上上限）
-    if (header_length < 0 || header_length > NLOGGER_MMAP_CACHE_MAX_HEADER_CONTENT_SIZE) {
-        return ERROR_CODE_INVALID_HEADER_LENGTH_ON_PARSE_MMAP_HEADER;
-    }
-    mmap_buffer += header_length;
-    //检查协议尾部是否正确
-    if (*mmap_buffer != NLOGGER_MMAP_CACHE_HEADER_TAIL_TAG) {
-        return ERROR_CODE_INVALID_HEAD_OR_TAIL_TAG_ON_PARSE_MMAP_HEADER;
-    }
-    mmap_buffer -= header_length;
-
-    char content[header_length];
-    memset(content, 0, header_length);
-    memcpy(content, mmap_buffer, header_length);
-    cJSON *json_content = cJSON_Parse(content);
-    if (json_content == NULL) {
-        return ERROR_CODE_BAD_HEADER_CONTENT_ON_PARSE_MMAP_HEADER;
-    }
-    cJSON *json_file_name = cJSON_GetObjectItem(json_content, NLOGGER_MMAP_CACHE_HEADER_KEY_FILE);
-    cJSON *json_version   = cJSON_GetObjectItem(json_content, NLOGGER_MMAP_CACHE_HEADER_KEY_VERSION);
-    cJSON *json_date      = cJSON_GetObjectItem(json_content, NLOGGER_MMAP_CACHE_HEADER_KEY_DATE);
-
-
-    if (json_file_name == NULL || json_file_name->type != cJSON_String || is_empty_string(json_file_name->valuestring) ||
-        json_version == NULL || json_version->type != cJSON_Number ||
-        json_date == NULL || json_date->type != cJSON_Number) {
-        return ERROR_CODE_BAD_HEADER_CONTENT_ON_PARSE_MMAP_HEADER;
+int _init_cache_from_mmap_buffer(struct nlogger_cache_struct *cache, char **log_file_name) {
+    int error_code = ERROR_CODE_CAN_NOT_PARSE_ON_MEMORY_CACHE_MODE;
+    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE) {
+        //解析日志文件名以及cache header的长度，如果结果大于0代表成功，结果数值就是header的长度
+        int parse_result = parse_mmap_cache_head(cache->p_buffer, log_file_name);
+        if (parse_result > 0) {
+            cache->p_content_length = cache->p_buffer + parse_result;
+            //解析日志cache content的长度，如果结果大于0代表成功，结果数值就是content的长度
+            parse_result = parse_mmap_cache_content_length(cache->p_content_length);
+            if (parse_result > 0) {
+                cache->content_length = (unsigned int) parse_result;
+                error_code = ERROR_CODE_OK;
+            } else {
+                LOGE("flush_nlogger", "parse_mmap_cache_content_length on error, error code  >>> %d", parse_result);
+                error_code = parse_result;
+            }
+        } else {
+            LOGE("flush_nlogger", "parse_mmap_cache_header on error, error code >>> %d", parse_result);
+            error_code = parse_result;
+        }
     }
 
-    LOGI("parse_mmap_h", "on parse mmap header, file_name=%s, version=%d, date=%f", json_file_name->valuestring, json_version->valueint, json_date->valuedouble);
-
-    //返回缓存对应的日志文件名log_file_name
-    size_t file_name_length = strlen(json_file_name->valuestring) + 1;
-    char   *temp_file_name  = malloc(file_name_length);
-    memset(temp_file_name, 0, file_name_length);
-    memcpy(temp_file_name, json_file_name->valuestring, file_name_length);
-    *file_name = temp_file_name;
-
-    //记录缓存的长度地址和长度值
-    mmap_buffer += header_length;
-    mmap_buffer += 1;
-    cache->p_content_length = mmap_buffer;
-
-    //从content长度地址中获取记录的长度
-    memset(length_array, 0, 4);
-    for (int i = 0; i < NLOGGER_CONTENT_LENGTH_BYTE_SIZE; ++i) {
-        length_array[i] = *mmap_buffer;
-        mmap_buffer++;
-    }
-    adjust_byte_order_nlogger(length_array);
-    cache->content_length = *((unsigned int *) length_array);
-    LOGD("parse_mmap_h", "parse content length from header, cache->length >>> %d", cache->content_length)
-    cJSON_Delete(json_content);
-
-    return ERROR_CODE_OK;
+    return error_code;
 }
+
 
 int flush_nlogger() {
     if (g_nlogger == NULL || g_nlogger->state == NLOGGER_STATE_ERROR) {
         return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
     }
 
-    //test debug
     _print_current_nlogger();
 
-//    char *file_name;
-//    int  result = _parse_mmap_cache_head(&g_nlogger->cache, &file_name);
-//    LOGD("flush_nlogger", "flush_nlogger result >>>> %d", result);
-
-    //在没有文件名的情况下去flush的时候需要从mmap中获取文件名然后再打开，（这一步是为了兼容init的时候进行初始化的操作）
+    //在没有文件名的情况下去flush的时候需要从mmap中获取文件名然后再打开
+    // （这一步是为了兼容init的时候进行初始化的操作）
+    int  malloc_file_name_by_parse_mmap = 0; //标记是否有为 file 申请过内存
     char *file_name                     = NULL;
-    int  malloc_file_name_by_parse_mmap = 0;
     if (g_nlogger->log.p_name == NULL &&
         g_nlogger->cache.cache_mode == NLOGGER_MMAP_CACHE_MODE) {
         if (g_nlogger->log.p_dir == NULL) {
             return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
         }
-        //todo 解析mmap文件 需要获取 缓存文件的长度，温存文件的指针
-        int parse_result = _parse_mmap_cache_head(&g_nlogger->cache, &file_name);
+        int init_result = _init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
+        if (init_result != ERROR_CODE_OK) {
+            return init_result;
+        }
         malloc_file_name_by_parse_mmap = 1;
-        LOGD("flush_nlogger", "parse_mmap_cache_head finished, result >>> %d", parse_result);
     } else if (g_nlogger->log.p_name != NULL && !is_empty_string(g_nlogger->log.p_name)) {
         file_name = g_nlogger->log.p_name;
     } else {
@@ -1093,17 +720,19 @@ int flush_nlogger() {
         return ERROR_CODE_UNEXPECT_STATE_WHEN_ON_FLUSH;
     }
 
-    //检查日志文件是否存在
+    //检查日志文件是否存在,不存在则创建并且打开
     int check_log_result = _check_log_file_healthy(&g_nlogger->log, file_name);
-    if (check_log_result <= 0) {
-        LOGE("flush_nlogger", "_check_log_file_healthy on error >>> %d", check_log_result)
-        return check_log_result;
-    }
 
+    //先释放内存，避免内存泄露
     if (file_name != NULL && malloc_file_name_by_parse_mmap) {
         free(file_name);
     }
 
+    //再检查日志文件检测的结果
+    if (check_log_result <= 0) {
+        LOGE("flush_nlogger", "_check_log_file_healthy on error >>> %d", check_log_result)
+        return check_log_result;
+    }
 
     //todo 检查一下方法的参数是否都是有效的
     char *cache_content = g_nlogger->cache.p_content_length + NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
@@ -1111,7 +740,6 @@ int flush_nlogger() {
     _reset_cache_and_data_handler();
 
 
-    //test debug
     _print_current_nlogger();
 
     return ERROR_CODE_OK;

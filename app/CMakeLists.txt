@@ -21,6 +21,10 @@ SET(SOURCE_FILE src/main/jni/nlogger_native_interface.h
         src/main/jni/nlogger_utils.c
         src/main/jni/cJSON.h
         src/main/jni/cJSON.c
+        src/main/jni/nlogger_protocol.h
+        src/main/jni/nlogger_protocol.c
+        src/main/jni/nlogger_data_handler.h
+        src/main/jni/nlogger_data_handler.c
         )
 
 #find_library( # Sets the name of the path variable.

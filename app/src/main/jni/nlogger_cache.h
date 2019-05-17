@@ -29,13 +29,22 @@
 
 
 
+#include <stdio.h>
+#include <unistd.h>
+#include<sys/mman.h>
+#include <fcntl.h>
+#include <string.h>
 
-//#include <stdio.h>
-//#include <unistd.h>
-//#include<sys/mman.h>
-//#include <fcntl.h>
-//#include <string.h>
+int create_cache_nlogger(char *mmap_cache_file_path, char **mmap_cache_buffer);
 
-int init_cache_nlogger(char *mmap_cache_file_path, char **mmap_cache_buffer);
+int parse_mmap_cache_head(char *cache_buffer, char **file_name);
+
+int parse_mmap_cache_content_length(char *p_content_length);
+
+size_t update_cache_section_length(char *section_length, unsigned int length);
+
+size_t update_cache_content_length(char *content_length, unsigned int length);
+
+size_t write_mmap_cache_header(char *cache_buffer, char *log_file_name);
 
 #endif //NLOGGER_NLOGGER_MMAP_H
