@@ -43,10 +43,11 @@ class Gzip {
         fileChannel.read(lengthBuffer, headTagIndex + 1)
         lengthBuffer.order(ByteOrder.BIG_ENDIAN)
         val length = lengthBuffer.getInt(0)
-        println("content length >>> $length")
-        if (length < 0) {
+        if (length < 0 || length >= 10000) {
             println("!!! content length >>> $length")
             return
+        }else{
+            println("content length >>> $length")
         }
         if (headTagIndex != 0L) {
             contentIndex = headTagIndex + 5L

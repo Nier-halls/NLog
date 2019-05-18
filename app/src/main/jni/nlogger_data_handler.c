@@ -56,6 +56,8 @@ int init_zlib(struct nlogger_data_handler_struct *data_handler) {
     data_handler->remain_data_length = 0;
     //初始化填充iv
     memcpy(data_handler->p_encrypt_iv_pending, data_handler->p_encrypt_iv, 16);
+
+    data_handler->state = NLOGGER_HANDLER_STATE_INIT;
     return ERROR_CODE_OK;
 }
 
@@ -166,7 +168,8 @@ size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_hand
  * @return 写入数据的长度
  */
 size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t length) {
-
+    //todo 状态检查
+    LOGW("compress_data", "start compress_and_write_data, target length >>> %zd", length);
     size_t handled = 0;
     //todo 压缩数据 加密数据 不一定所有数据都会写入，会有一小部分数据缓存等待下一次写入
     handled = _zlib_compress_with_encrypt(data_handler, destination, source, length, Z_SYNC_FLUSH);
@@ -185,7 +188,12 @@ size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler,
  * @return 写入数据的长度
  */
 size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, char *destination) {
+    LOGI("finish_compress", "start finish_compress_data.")
     size_t handled = 0;
+    if (data_handler->state != NLOGGER_HANDLER_STATE_HANDLING) {
+        return (size_t) -1;
+    }
+
     handled = _zlib_compress_with_encrypt(data_handler, destination, NULL, 0, Z_FINISH);
     deflateEnd(data_handler->p_stream);
     destination += handled;
@@ -199,6 +207,11 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
         data_handler->remain_data_length = 0;
         handled += NLOGGER_AES_ENCRYPT_UNIT;
     }
+    data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
     //todo 关于remain_data写入以及delete_end等收尾工作
     return handled;
+}
+
+int is_data_heandler_init(struct nlogger_data_handler_struct *data_handler) {
+    return data_handler->state != NLOGGER_HANDLER_STATE_IDLE;
 }

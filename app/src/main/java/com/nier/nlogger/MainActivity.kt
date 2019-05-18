@@ -15,11 +15,6 @@ class MainActivity : AppCompatActivity() {
             NLoggerProxy.instance.init(this)
         }
 
-        findViewById<TextView>(R.id.btn_open).setOnClickListener {
-            NLoggerProxy.instance.open()
-
-        }
-
         findViewById<TextView>(R.id.btn_write).setOnClickListener {
             NLoggerProxy.instance.write("")
 

@@ -4,11 +4,23 @@
  * 日志库主文件，带下划线前缀的未私有方法，功能尽量独立，不引用全局的数据
  */
 
-#include <malloc.h>
-#include <sys/stat.h>
-#include <cJSON.h>
-#include <sys/mman.h>
-#include "nlogger.h"
+//#include <malloc.h>
+//#include <sys/stat.h>
+//#include <cJSON.h>
+//#include <sys/mman.h>
+//#include "nlogger_android_log.h"
+//#include "nlogger_error_code.h"
+//#include "nlogger_constants.h"
+//#include "nlogger_file_utils.h"
+//#include "nlogger_cache.h"
+//#include "nlogger_json_util.h"
+//#include "nlogger_utils.h"
+//#include "nlogger_protocol.h"
+//#include "nlogger_data_handler.h"
+//#include "nlogger_log_file_handler.h"
+//#include "nlogger_log_file_handler.h"
+
+#include "nlogger_data_handler.h"
 #include "nlogger_android_log.h"
 #include "nlogger_error_code.h"
 #include "nlogger_constants.h"
@@ -17,46 +29,10 @@
 #include "nlogger_json_util.h"
 #include "nlogger_utils.h"
 #include "nlogger_protocol.h"
-#include "nlogger_data_handler.h"
 
+#include "nlogger.h"
 
 static nlogger *g_nlogger;
-static char    *g_null_string = "NULL";
-
-void _get_string_data(char *data, char **result) {
-    if (is_empty_string(data)) {
-        *result = g_null_string;
-        return;
-    }
-    *result = data;
-}
-
-void _print_current_nlogger() {
-    if (g_nlogger == NULL) {
-        return;
-    }
-    char *result;
-    LOGW("debug", "\n");
-    LOGW("debug", ">>>>>>>>>>>>>>>>  g_nlogger  >>>>>>>>>>>>>>>>");
-    LOGW("debug", "cache.cache_mod = %d", g_nlogger->cache.cache_mode);
-    LOGW("debug", "cache.length = %d", g_nlogger->cache.content_length);
-    LOGW("debug", "cache.section_length = %d", g_nlogger->cache.section_length);
-    _get_string_data(g_nlogger->cache.p_file_path, &result);
-    LOGW("debug", "cache.p_file_path = %s", result);
-    _get_string_data(g_nlogger->cache.p_buffer, &result);
-    LOGW("debug", "cache.p_buffer = %s", result);
-    LOGW("debug", "================================================");
-    LOGW("debug", "log.state = %d", g_nlogger->log.state);
-    LOGW("debug", "log.file_length = %ld", g_nlogger->log.file_length);
-    _get_string_data(g_nlogger->log.p_path, &result);
-    LOGW("debug", "log.p_path = %s", result);
-    _get_string_data(g_nlogger->log.p_name, &result);
-    LOGW("debug", "log.p_name = %s", result);
-    _get_string_data(g_nlogger->log.p_dir, &result);
-    LOGW("debug", "log.p_dir = %s", result);
-    LOGW("debug", "<<<<<<<<<<<<<<<<  g_nlogger  <<<<<<<<<<<<<<<<");
-    LOGW("debug", "\n");
-}
 
 /**
  * 创建mmap缓存文件用的路径（包含缓存文件名）
@@ -93,35 +69,6 @@ int _create_cache_file_path(const char *cache_file_dir, char **result_path) {
     strcat(*result_path, NLOGGER_CACHE_FILE_NAME);
     return ERROR_CODE_OK;
 }
-
-/**
- * 创建日志文件存放的目录（不包含日志文件名）
- */
-int _create_log_file_dir(const char *log_file_dir, char **result_dir) {
-    if (is_empty_string(log_file_dir)) {
-        return ERROR_CODE_ILLEGAL_ARGUMENT;
-    }
-    int appendSeparate = 0;
-    if (log_file_dir[strlen(log_file_dir)] != '/') {
-        appendSeparate = 1;
-    }
-    size_t path_string_length = strlen(log_file_dir) +
-                                (appendSeparate ? strlen("/") : 0) +
-                                strlen(NLOGGER_CACHE_DIR) +
-                                strlen("\0");
-    *result_dir = malloc(path_string_length);
-    if (*result_dir == NULL) {
-        return ERROR_CODE_MALLOC_LOG_FILE_DIR_STRING;
-    }
-    memset(*result_dir, 0, path_string_length);
-    memcpy(*result_dir, log_file_dir, strlen(log_file_dir));
-    if (appendSeparate) {
-        strcat(*result_dir, "/");
-    }
-    LOGD("init", "create log file dir >>> %s ", *result_dir);
-    return makedir_nlogger(*result_dir);
-}
-
 
 /**
  * 初始化路径参数，并且创建文件
@@ -166,10 +113,12 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     g_nlogger->cache.p_file_path = final_mmap_cache_path;
 
     //创建日志文件的存放目录
-    char *final_log_file_dir;
-    _create_log_file_dir(log_file_dir, &final_log_file_dir);
-    LOGD("init", "finish create log file dir >>> %s ", final_log_file_dir)
-    g_nlogger->log.p_dir = final_log_file_dir;
+//    char *final_log_file_dir;
+//    _create_log_file_dir(log_file_dir, &final_log_file_dir);
+//    LOGD("init", "finish create log file dir >>> %s ", final_log_file_dir)
+//    g_nlogger->log.p_dir = final_log_file_dir;
+
+    set_log_file_save_dir(&g_nlogger->log, log_file_dir);
 
 //    //配置加密相关的参数
 //    char *temp_encrypt_key = malloc(sizeof(char) * 16);
@@ -191,176 +140,11 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
         g_nlogger->state            = NLOGGER_STATE_INIT;
         g_nlogger->cache.cache_mode = create_cache_result;
     }
-    _print_current_nlogger();
+    print_current_nlogger(g_nlogger);
 
     LOGD("init", "init cache result >>> %d.", create_cache_result);
 
     //todo try flush cache log
-    return ERROR_CODE_OK;
-}
-
-/**
- * 尝试在日志文件不存的时候创建日志文件，如果日志文件存在的话，则关闭之前的日志文件并且flush，
- *
- */
-int _open_log_file(struct nlogger_log_struct *log) {
-    if (!is_file_exist_nlogger(log->p_dir)) {
-        makedir_nlogger(log->p_dir);
-    }
-    FILE *log_file = fopen(log->p_path, "ab+");
-    if (log_file != NULL) {
-        log->p_file = log_file;
-        fseek(log_file, 0, SEEK_END);
-        log->file_length = ftell(log_file);
-        LOGD("check", "open log file %s  success.", log->p_path);
-        log->state = NLOGGER_LOG_STATE_OPEN;
-    } else {
-        LOGW("check", "open log file %s failed.", log->p_path);
-        log->state = NLOGGER_LOG_STATE_CLOSE;
-        return ERROR_CODE_OPEN_LOG_FILE_FAILED;
-    }
-    return ERROR_CODE_OK;
-}
-
-int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name) {
-    size_t file_name_size = strlen(log_file_name);
-    size_t file_dir_size  = strlen(log->p_dir);
-    size_t end_tag_size   = 1;
-    LOGD("check", "log_file_name >>> %s .", log->p_dir);
-
-    LOGD("check", "log_file_name >>> %s .", log_file_name);
-
-    LOGD("check", "file_name_size >>> %zd , file_dir_size >>> %zd , final_file_name >>> %zd.", file_name_size,
-         file_dir_size, file_name_size + end_tag_size);
-
-    log->p_name = malloc(file_name_size + end_tag_size);
-    if (log->p_name != NULL) {
-        memset(log->p_name, 0, file_name_size + end_tag_size);
-        memcpy(log->p_name, log_file_name, file_name_size);
-        LOGD("check", "### size of log->p_name >>> %zd .", strlen(log->p_name));
-
-        LOGD("check", "### log->p_name >>> %s .", log->p_name);
-    } else {
-        return ERROR_CODE_MALLOC_LOG_FILE_NAME_STRING;
-    }
-
-    log->p_path = malloc(file_dir_size + file_name_size + end_tag_size);
-    if (log->p_path != NULL) {
-        memset(log->p_path, 0, file_dir_size + file_name_size + end_tag_size);
-        memcpy(log->p_path, log->p_dir, file_dir_size);
-        memcpy(log->p_path + file_dir_size, log->p_name, file_name_size);
-    } else {
-        return ERROR_CODE_MALLOC_LOG_FILE_PATH_STRING;
-    }
-    LOGD("check", "_config_log_file_name finish. log file name >>> %s, log file path >>> %s.", log->p_name,
-         log->p_path);
-
-
-    if (g_nlogger->log.p_dir == NULL) {
-        return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
-    }
-
-
-    return ERROR_CODE_OK;
-}
-
-
-/**
- * 检查日志文件的状态
- *
- * 如果参数文件名对应的Log File没有打开，则直接open file
- *
- * 如果参数文件名和当前文件名不一致则需要关闭原来的文件，从新open file创建新的文件流
- */
-int _check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_name) {
-    LOGD("check", "#### start check log file !!!");
-//    这一步放在外面来判断，也就是write的地方
-//    if (g_nlogger == NULL || g_nlogger->state == NLOGGER_STATE_ERROR) {
-//        return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
-//    }
-    if (is_empty_string(log_file_name)) {
-        return ERROR_CODE_ILLEGAL_ARGUMENT;
-    }
-
-    //检查之前保存的日志文件名
-    if (is_empty_string(log->p_name)) {
-        /*第一次创建，之前没有使用过，这个时候应该在init的时候flush过一次，因此不再需要flush*/
-        int result_code = _set_log_file_name(log, log_file_name);
-        //检查创建是否成功，如果path 或者 name创建失败则直接返回；
-        if (result_code != ERROR_CODE_OK) {
-            LOGW("check", "first malloc file string on error >>> %d .", result_code);
-            return result_code;
-        }
-        LOGD("check", "first config log file success log file path >>> %s.", log->p_path);
-    } else if (strcmp(log->p_name, log_file_name) != 0) {
-        /*非第一次创建，之前已经有一个已经打开的日志文件，并且日志文件是打开状态*/
-        if (log->state == NLOGGER_LOG_STATE_OPEN &&
-            log->p_file != NULL) {
-            //如果当前是打开状态，则尝试关闭，这里是否需要flush
-            //todo try flush cache log
-            //释放资源
-            fclose(log->p_file);
-            free(log->p_name);
-            free(log->p_path);
-            log->state = NLOGGER_LOG_STATE_CLOSE;
-        }
-        //如果日志文件的目录都有问题说明需要重新初始化
-        if (log->p_dir == NULL) {
-            LOGW("check", "log file dir is empty on check.");
-            return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
-        }
-        int result_code = _set_log_file_name(log, log_file_name);
-        //检查创建是否成功，如果path 或者 name创建失败则直接返回；
-        if (result_code != ERROR_CODE_OK) {
-            LOGW("check", "malloc file string on error >>> %d .", result_code);
-            return result_code;
-        }
-        LOGD("check", "close last once and new create log file, config success %s .", log->p_path);
-    } else {
-        /*表示当前写入的日志文件和上次写入的日志文件是一致的*/
-        if (!is_empty_string(log->p_path) &&
-            is_file_exist_nlogger(log->p_path) &&
-            log->p_file != NULL &&
-            log->state == NLOGGER_LOG_STATE_OPEN) {
-            //说明当前已经打开的日志文件和之前的是一致的
-            //并且日志文件已经是打开状态，这个时候什么事都不用做
-            LOGD("check", "same of last once log file config, success %s .", log->p_path);
-            return ERROR_CODE_OK;
-        } else {
-            int temp_error_code = 0;
-            if (log->p_name != NULL) {
-                temp_error_code |= 0x0001;
-                free(log->p_name);
-            }
-            if (log->p_path != NULL) {
-                temp_error_code |= 0x0010;
-                free(log->p_path);
-            }
-            if (log->p_file != NULL) {
-                temp_error_code |= 0x0100;
-                fclose(log->p_file);
-            }
-            if (log->state == NLOGGER_LOG_STATE_CLOSE) {
-                temp_error_code |= 0x1000;
-            }
-            log->state = NLOGGER_LOG_STATE_CLOSE;
-            LOGE("check", "on error log same as last once, but state invalid. state >>> %d", temp_error_code);
-            //初始化状态重新调用一次，表示当前日志文件状态有问题重新配置日志文件
-            _check_log_file_healthy(log, log_file_name);
-        }
-    }
-
-    //如果是关闭状态，则检查是否需要创建目录，如果是打开状态则肯定已经做了日志文件长度这些状态的记录
-    if (log->state == NLOGGER_LOG_STATE_CLOSE) {
-        int result = _open_log_file(log);
-        if (result == ERROR_CODE_OK) {
-            //表示第一次打开日志文件
-            return ERROR_CODE_NEW_LOG_FILE_OPENED;
-        }
-        //打开文件失败的情况
-        return result;
-    }
-
     return ERROR_CODE_OK;
 }
 
@@ -462,41 +246,26 @@ int _check_can_flush_after_compress(struct nlogger_cache_struct *cache) {
     return result;
 }
 
-/**
- * 检查是否需要结束一段压缩数据
- */
-int _check_can_end_section(struct nlogger_data_handler_struct *data_handler, size_t compressed_data) {
-    int result = 1;
-    if (data_handler->state == NLOGGER_HANDLER_STATE_HANDLING &&
-        compressed_data > NLOGGER_COMPRESS_SECTION_THRESHOLD) {
-        result = 1;
+int _init_and_start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
+    LOGI("real_write", "start _real_write on new section");
+    int init_result = init_zlib(data_handler);
+    if (init_result != ERROR_CODE_OK) {
+        return init_result;
     }
-    return result;
-}
+    //压缩日志段开始，写入开始标志符号，todo 改成用魔数到形式
+    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_HEAD_TAG;
+    cache->p_next_write += 1;
+    cache->content_length += 1;
 
-int _try_start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
-    if (data_handler->state == NLOGGER_HANDLER_STATE_IDLE) {
-        //如果没有初始化，就先初始化一下
-        int init_result = init_zlib(data_handler);
-        if (init_result != ERROR_CODE_OK) {
-            return init_result;
-        }
+    //保存 p_section_length 地址，初始化section长度字段
+    cache->section_length   = 0;
+    cache->p_section_length = cache->p_next_write;
 
-        //压缩日志段开始，写入开始标志符号，todo 改成用魔数到形式
-        *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_HEAD_TAG;
-        cache->p_next_write += 1;
-        cache->content_length += 1;
+    //移动写入指针，section长度字段（目前占位4byte）
+    cache->p_next_write += NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
+    cache->content_length += NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
+    LOGI("real_write", "finish _real_write on new section");
 
-        //保存 p_section_length 地址，初始化section长度字段
-        cache->section_length   = 0;
-        cache->p_section_length = cache->p_next_write;
-
-        //移动写入指针，section长度字段（目前占位4byte）
-        cache->p_next_write += NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
-        cache->content_length += NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
-
-        data_handler->state = NLOGGER_HANDLER_STATE_INIT;
-    }
     return ERROR_CODE_OK;
 }
 
@@ -504,33 +273,42 @@ int _try_start_new_section(struct nlogger_data_handler_struct *data_handler, str
 /**
  * 结束一段压缩过程，并且将剩余数据全部都写入到缓存中
  */
-int _try_end_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
-    if (data_handler->state == NLOGGER_HANDLER_STATE_HANDLING) {
-        //结束一次压缩流程，并且更新length，结束的时候会写入一些尾部标志位
-        size_t finish_compressed_length = finish_compress_data(data_handler, cache->p_next_write);
-        cache->p_next_write += finish_compressed_length;
-        cache->section_length += finish_compressed_length;
-        cache->content_length += finish_compressed_length;
-
-        //压缩日志段结束，写入结束标志符号，todo 改成用魔数到形式
-        *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_TAIL_TAG;
-        cache->p_next_write += 1;
-        cache->content_length += 1;
-
-        data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
+int _finish_and_end_current_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
+//    if (data_handler->state == NLOGGER_HANDLER_STATE_HANDLING) {
+    //结束一次压缩流程，并且更新length，结束的时候会写入一些尾部标志位
+    size_t finish_compressed_length = finish_compress_data(data_handler, cache->p_next_write);
+    LOGD("finish_section", "finish_compressed_length >>> %zd", finish_compressed_length)
+    if (finish_compressed_length < 0) {
+        return ERROR_CODE_COMPRESS_FAILED;
     }
+
+    cache->p_next_write += finish_compressed_length;
+    cache->section_length += finish_compressed_length;
+    cache->content_length += finish_compressed_length;
+
+    //压缩日志段结束，写入结束标志符号，todo 改成用魔数到形式
+    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_TAIL_TAG;
+    cache->p_next_write += 1;
+    cache->content_length += 1;
+//    }
+
+    LOGI("finish_section", "finish_compressed_length end.")
     return ERROR_CODE_OK;
 }
 
 /**
  * 写入数据片段到缓存中
  */
-int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *segment,
-                size_t segment_length) {
-    _try_start_new_section(data_handler, cache);
-    _update_length(cache);
-
+int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *segment, size_t segment_length) {
     LOGD("real_write", "start _real_write cache->p_next_write >>> %ld", cache->p_next_write);
+
+    //判断是否有初始化，一般情况完成一个section的压缩就要重新初始化
+    if (!is_data_heandler_init(data_handler)) {
+        _init_and_start_new_section(data_handler, cache);
+        _update_length(cache);
+    }
+
+
     //加密压缩数据，尽量不去依赖缓存相关数据结构
     size_t compressed_length = compress_and_write_data(data_handler, cache->p_next_write, segment, segment_length);
     if (compressed_length < 0) {
@@ -549,10 +327,14 @@ int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
     }
 
     //判断是否需要结束一段日志数据段
-    if (_check_can_end_section(data_handler, compressed_length)) {
-        _try_end_section(data_handler, cache);
+    if (compressed_length > NLOGGER_COMPRESS_SECTION_THRESHOLD || 1) {
+        int finish_result = _finish_and_end_current_section(data_handler, cache);
+        if (finish_result != ERROR_CODE_OK) {
+            return finish_result;
+        }
         _update_length(cache);
     }
+
     LOGD("real_write", "finish _real_write cache->p_next_write >>> %ld", cache->p_next_write);
     return ERROR_CODE_OK;
 }
@@ -599,12 +381,13 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
         return check_cache_result;
     }
     //step1.1 mmap缓存有问题，避免remain中缓存数据影响新插入的日志，先把它清空
+    //todo 封装一个重置data_handler的方法
     if (check_cache_result == ERROR_CODE_CHANGE_CACHE_MODE_TO_MEMORY) {
         g_nlogger->data_handler.remain_data_length = 0;
     }
 
     //step2 检查日志文件
-    int check_log_result = _check_log_file_healthy(&g_nlogger->log, log_file_name);
+    int check_log_result = check_log_file_healthy(&g_nlogger->log, log_file_name);
 
     if (check_log_result <= 0) {
         LOGE("write_nlogger", "_check_log_file_healthy on error >>> %d", check_log_result)
@@ -628,13 +411,18 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     if (build_result != ERROR_CODE_OK || result_json_data == NULL) {
         return build_result;
     }
-
     size_t log_json_data_length = strlen(result_json_data) + 1;
     if (log_json_data_length <= 1) {
         return ERROR_CODE_BUILD_LOG_BLOCK_FAILED;
     }
 
     LOGI("write", "raw log data size >>> %zd, log data >>> %s ", log_json_data_length, result_json_data)
+
+    if (g_nlogger->cache.p_next_write == NULL){
+        LOGE("write_nlogger","###################  UNKNOW ERROR  ##################")
+        print_current_nlogger(g_nlogger);
+        LOGE("write_nlogger","###################  UNKNOW ERROR  ##################")
+    }
 
     //step4 分段压缩写入
     int result = _write_data(&g_nlogger->cache, &g_nlogger->data_handler, result_json_data, log_json_data_length);
@@ -695,24 +483,22 @@ int flush_nlogger() {
         return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
     }
 
-    _print_current_nlogger();
+    print_current_nlogger(g_nlogger);
 
     //在没有文件名的情况下去flush的时候需要从mmap中获取文件名然后再打开
     // （这一步是为了兼容init的时候进行初始化的操作）
     int  malloc_file_name_by_parse_mmap = 0; //标记是否有为 file 申请过内存
     char *file_name                     = NULL;
-    if (g_nlogger->log.p_name == NULL &&
-        g_nlogger->cache.cache_mode == NLOGGER_MMAP_CACHE_MODE) {
-        if (g_nlogger->log.p_dir == NULL) {
-            return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
-        }
+    int  file_name_configured           = is_log_file_name_valid(&g_nlogger->log) == ERROR_CODE_OK;
+
+    if (!file_name_configured && g_nlogger->cache.cache_mode == NLOGGER_MMAP_CACHE_MODE) {
         int init_result = _init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
         if (init_result != ERROR_CODE_OK) {
             return init_result;
         }
         malloc_file_name_by_parse_mmap = 1;
-    } else if (g_nlogger->log.p_name != NULL && !is_empty_string(g_nlogger->log.p_name)) {
-        file_name = g_nlogger->log.p_name;
+    } else if (file_name_configured) {
+        file_name = current_log_file_name(&g_nlogger->log);
     } else {
         //到目前为止没有能获取到文件名的方法
         //没有文件名的同时，也不是mmap缓存，通常是init过后采用内存缓存策略的同时去flush了
@@ -721,7 +507,7 @@ int flush_nlogger() {
     }
 
     //检查日志文件是否存在,不存在则创建并且打开
-    int check_log_result = _check_log_file_healthy(&g_nlogger->log, file_name);
+    int check_log_result = check_log_file_healthy(&g_nlogger->log, file_name);
 
     //先释放内存，避免内存泄露
     if (file_name != NULL && malloc_file_name_by_parse_mmap) {
@@ -736,13 +522,51 @@ int flush_nlogger() {
 
     //todo 检查一下方法的参数是否都是有效的
     char *cache_content = g_nlogger->cache.p_content_length + NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
+    //todo 需要封装一下
     _flush_cache_to_file(cache_content, g_nlogger->cache.content_length, g_nlogger->log.p_file);
     _reset_cache_and_data_handler();
 
 
-    _print_current_nlogger();
+    print_current_nlogger(g_nlogger);
 
     return ERROR_CODE_OK;
+}
+
+static char *g_null_string = "NULL";
+
+void _get_string_data(char *data, char **result) {
+    if (is_empty_string(data)) {
+        *result = g_null_string;
+        return;
+    }
+    *result = data;
+}
+
+void print_current_nlogger(struct nlogger_struct *g_nlogger) {
+    if (g_nlogger == NULL) {
+        return;
+    }
+    char *result;
+    LOGW("debug", "\n");
+    LOGW("debug", ">>>>>>>>>>>>>>>>  g_nlogger  >>>>>>>>>>>>>>>>");
+    LOGW("debug", "cache.cache_mod = %d", g_nlogger->cache.cache_mode);
+    LOGW("debug", "cache.length = %d", g_nlogger->cache.content_length);
+    LOGW("debug", "cache.section_length = %d", g_nlogger->cache.section_length);
+    _get_string_data(g_nlogger->cache.p_file_path, &result);
+    LOGW("debug", "cache.p_file_path = %s", result);
+    _get_string_data(g_nlogger->cache.p_buffer, &result);
+    LOGW("debug", "cache.p_buffer = %s", result);
+    LOGW("debug", "================================================");
+    LOGW("debug", "log.state = %d", g_nlogger->log.state);
+    LOGW("debug", "log.file_length = %ld", g_nlogger->log.file_length);
+    _get_string_data(g_nlogger->log.p_path, &result);
+    LOGW("debug", "log.p_path = %s", result);
+    _get_string_data(g_nlogger->log.p_name, &result);
+    LOGW("debug", "log.p_name = %s", result);
+    _get_string_data(g_nlogger->log.p_dir, &result);
+    LOGW("debug", "log.p_dir = %s", result);
+    LOGW("debug", "<<<<<<<<<<<<<<<<  g_nlogger  <<<<<<<<<<<<<<<<");
+    LOGW("debug", "\n");
 }
 
 

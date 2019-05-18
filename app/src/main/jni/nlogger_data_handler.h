@@ -47,10 +47,12 @@ typedef struct nlogger_data_handler_struct {
 };
 #endif //NLOGGER_NLOGGER_DATA_HANDLER_H
 
-int init_encrypt(struct nlogger_data_handler_struct *data_handler,const char *encrypt_key,const char *encrypt_iv);
+int init_encrypt(struct nlogger_data_handler_struct *data_handler, const char *encrypt_key, const char *encrypt_iv);
 
 int init_zlib(struct nlogger_data_handler_struct *data_handler);
 
 size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, char *destination);
 
 size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t length);
+
+int is_data_heandler_init(struct nlogger_data_handler_struct *data_handler);

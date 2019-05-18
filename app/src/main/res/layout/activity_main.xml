@@ -20,17 +20,11 @@
 
     <Button
             android:id="@+id/btn_init"
+            android:layout_weight="1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:textSize="30sp"
             android:text="init"
-    />
-
-
-    <Button
-            android:id="@+id/btn_open"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="open"
     />
 
 
@@ -39,6 +33,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="write"
+            android:textSize="30sp"
+
+            android:layout_weight="1"
     />
 
     <Button
@@ -46,6 +43,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="flush"
+            android:textSize="30sp"
+
+            android:layout_weight="1"
     />
 
 </LinearLayout>

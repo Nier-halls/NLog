@@ -14,6 +14,7 @@ class NLoggerProxy {
         }
 
         val instance = NLoggerProxy()
+        var testIndex = 0
     }
 
     private external fun nativeWrite(
@@ -53,12 +54,14 @@ class NLoggerProxy {
         nativeWrite(
             "niers_log",
             0,
-            "${System.currentTimeMillis()} write a log test heiheihei 2223333 666666 888888 !@#$%^&*()<>?. 试试中文",
+            "${System.currentTimeMillis()} write a log test heiheihei 2223333 666666 888888 !@#$%^&*()<>?. 试试中文 index=$testIndex",
             System.currentTimeMillis(),
             "main_nier",
             Thread.currentThread().id,
             1
         )
+
+        testIndex++
     }
 
     fun flush() {
