@@ -41,4 +41,7 @@ int set_log_file_save_dir(struct nlogger_log_struct *log, char *dir);
 
 char *current_log_file_name(struct nlogger_log_struct *log);
 
+int flush_cache_to_log_file(struct nlogger_log_struct *log, char *cache, size_t cache_length);
+
+
 #endif //NLOGGER_NLOGGER_LOG_FILE_HANDLER_H

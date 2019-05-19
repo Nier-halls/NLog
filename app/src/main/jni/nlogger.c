@@ -4,21 +4,6 @@
  * 日志库主文件，带下划线前缀的未私有方法，功能尽量独立，不引用全局的数据
  */
 
-//#include <malloc.h>
-//#include <sys/stat.h>
-//#include <cJSON.h>
-//#include <sys/mman.h>
-//#include "nlogger_android_log.h"
-//#include "nlogger_error_code.h"
-//#include "nlogger_constants.h"
-//#include "nlogger_file_utils.h"
-//#include "nlogger_cache.h"
-//#include "nlogger_json_util.h"
-//#include "nlogger_utils.h"
-//#include "nlogger_protocol.h"
-//#include "nlogger_data_handler.h"
-//#include "nlogger_log_file_handler.h"
-//#include "nlogger_log_file_handler.h"
 
 #include "nlogger_data_handler.h"
 #include "nlogger_android_log.h"
@@ -113,21 +98,9 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     g_nlogger->cache.p_file_path = final_mmap_cache_path;
 
     //创建日志文件的存放目录
-//    char *final_log_file_dir;
-//    _create_log_file_dir(log_file_dir, &final_log_file_dir);
-//    LOGD("init", "finish create log file dir >>> %s ", final_log_file_dir)
-//    g_nlogger->log.p_dir = final_log_file_dir;
-
     set_log_file_save_dir(&g_nlogger->log, log_file_dir);
 
-//    //配置加密相关的参数
-//    char *temp_encrypt_key = malloc(sizeof(char) * 16);
-//    memcpy(temp_encrypt_key, encrypt_key, sizeof(char) * 16);
-//    g_nlogger->data_handler.p_encrypt_key = temp_encrypt_key;
-//    char *temp_encrypt_iv = malloc(sizeof(char) * 16);
-//    memcpy(temp_encrypt_iv, encrypt_iv, sizeof(char) * 16);
-//    g_nlogger->data_handler.p_encrypt_iv         = temp_encrypt_iv;
-//    g_nlogger->data_handler.p_encrypt_iv_pending = malloc(sizeof(char) * 16);
+    //配置加密相关的参数
     init_encrypt(&g_nlogger->data_handler, encrypt_key, encrypt_iv);
 
     //初始化缓存文件，首先采用mmap缓存，失败则用内存缓存
@@ -145,6 +118,8 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     LOGD("init", "init cache result >>> %d.", create_cache_result);
 
     //todo try flush cache log
+    flush_nlogger();
+
     return ERROR_CODE_OK;
 }
 
@@ -303,7 +278,7 @@ int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
     LOGD("real_write", "start _real_write cache->p_next_write >>> %ld", cache->p_next_write);
 
     //判断是否有初始化，一般情况完成一个section的压缩就要重新初始化
-    if (!is_data_heandler_init(data_handler)) {
+    if (!is_data_handler_init(data_handler)) {
         _init_and_start_new_section(data_handler, cache);
         _update_length(cache);
     }
@@ -368,6 +343,9 @@ int _write_data(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
     return ERROR_CODE_OK;
 }
 
+/**
+ * 写入日志
+ */
 int write_nlogger(const char *log_file_name, int flag, char *log_content, long long local_time, char *thread_name,
                   long long thread_id, int is_main) {
     if (g_nlogger == NULL || g_nlogger->state == NLOGGER_STATE_ERROR) {
@@ -418,10 +396,10 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
 
     LOGI("write", "raw log data size >>> %zd, log data >>> %s ", log_json_data_length, result_json_data)
 
-    if (g_nlogger->cache.p_next_write == NULL){
-        LOGE("write_nlogger","###################  UNKNOW ERROR  ##################")
+    if (g_nlogger->cache.p_next_write == NULL) {
+        LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
         print_current_nlogger(g_nlogger);
-        LOGE("write_nlogger","###################  UNKNOW ERROR  ##################")
+        LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
     }
 
     //step4 分段压缩写入
@@ -440,7 +418,14 @@ int _flush_cache_to_file(char *cache, size_t cache_length, FILE *log_file) {
     return ERROR_CODE_OK;
 }
 
-int _reset_cache_and_data_handler() {
+/**
+ * 重制cache缓存状态
+ */
+int _reset_nlogger_cache(struct nlogger_cache_struct *cache) {
+    cache->content_length = 0;
+    cache->p_next_write   = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+    update_cache_content_length(cache->p_content_length, cache->content_length);
+
     return ERROR_CODE_OK;
 }
 
@@ -477,7 +462,9 @@ int _init_cache_from_mmap_buffer(struct nlogger_cache_struct *cache, char **log_
     return error_code;
 }
 
-
+/**
+ * 将缓存的数据写入到日志文件中
+ */
 int flush_nlogger() {
     if (g_nlogger == NULL || g_nlogger->state == NLOGGER_STATE_ERROR) {
         return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
@@ -485,12 +472,21 @@ int flush_nlogger() {
 
     print_current_nlogger(g_nlogger);
 
-    //在没有文件名的情况下去flush的时候需要从mmap中获取文件名然后再打开
-    // （这一步是为了兼容init的时候进行初始化的操作）
+    //step1 检查数据处理状态，是否在压缩状态，如果在压缩处理数据阶段则先finish
+    if (is_data_handler_processing(&g_nlogger->data_handler)) {
+        int finish_result = _finish_and_end_current_section(&g_nlogger->data_handler, &g_nlogger->cache);
+        if (finish_result != ERROR_CODE_OK) {
+            return finish_result;
+        }
+        _update_length(&g_nlogger->cache);
+    }
+
+    //step2 检查日志文件, 在没有文件名的情况下去flush的时候需要从mmap中获取文件名然后再打开
+    //（这一步是为了兼容init的时候进行初始化的操作）
     int  malloc_file_name_by_parse_mmap = 0; //标记是否有为 file 申请过内存
     char *file_name                     = NULL;
     int  file_name_configured           = is_log_file_name_valid(&g_nlogger->log) == ERROR_CODE_OK;
-
+    //step2.1 获取缓存对应到日志文件名
     if (!file_name_configured && g_nlogger->cache.cache_mode == NLOGGER_MMAP_CACHE_MODE) {
         int init_result = _init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
         if (init_result != ERROR_CODE_OK) {
@@ -506,7 +502,7 @@ int flush_nlogger() {
         return ERROR_CODE_UNEXPECT_STATE_WHEN_ON_FLUSH;
     }
 
-    //检查日志文件是否存在,不存在则创建并且打开
+    //step2.2 检查文件名对应到日志文件是否存在,不存在则创建并且打开
     int check_log_result = check_log_file_healthy(&g_nlogger->log, file_name);
 
     //先释放内存，避免内存泄露
@@ -520,12 +516,12 @@ int flush_nlogger() {
         return check_log_result;
     }
 
-    //todo 检查一下方法的参数是否都是有效的
-    char *cache_content = g_nlogger->cache.p_content_length + NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
-    //todo 需要封装一下
-    _flush_cache_to_file(cache_content, g_nlogger->cache.content_length, g_nlogger->log.p_file);
-    _reset_cache_and_data_handler();
+    //step3 将缓存到日志数据写入到日志文件中
+    char *cache_content = g_nlogger->cache.p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+    flush_cache_to_log_file(&g_nlogger->log, cache_content, g_nlogger->cache.content_length);
 
+    //step4 重制状态，为下次写入日志数据做准备
+    _reset_nlogger_cache(&g_nlogger->cache);
 
     print_current_nlogger(g_nlogger);
 

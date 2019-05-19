@@ -86,8 +86,9 @@ int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name
  * 检查日志文件的状态
  *
  * 如果参数文件名对应的Log File没有打开，则直接open file
- *
  * 如果参数文件名和当前文件名不一致则需要关闭原来的文件，从新open file创建新的文件流
+ *
+ * @return 小于0表示存在异常，1 代表文件存在，并且是打开状态，2 代表文件不存在但是重新创建了一个并且打开了文件流
  */
 int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_name) {
     LOGD("check", "#### start check log file !!!");
@@ -248,4 +249,21 @@ int set_log_file_save_dir(struct nlogger_log_struct *log, char *dir) {
  */
 char *current_log_file_name(struct nlogger_log_struct *log) {
     return log->p_name;
+}
+
+/**
+ * 将日缓存写入到日志文件中
+ *
+ */
+int flush_cache_to_log_file(struct nlogger_log_struct *log, char *cache, size_t cache_length) {
+    int result = ERROR_CODE_OK;
+    //重新检查一下需要写入到文件是否健康
+    if (check_log_file_healthy(log, log->p_name) < 0) {
+        return ERROR_CODE_BAD_LOG_FILE_STATE_ON_FLUSH;
+    }
+    fwrite(cache, sizeof(char), cache_length, log->p_file);
+    fflush(log->p_file);
+    log->file_length += cache_length;
+
+    return result;
 }

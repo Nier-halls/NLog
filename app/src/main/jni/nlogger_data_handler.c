@@ -212,6 +212,10 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
     return handled;
 }
 
-int is_data_heandler_init(struct nlogger_data_handler_struct *data_handler) {
+int is_data_handler_init(struct nlogger_data_handler_struct *data_handler) {
     return data_handler->state != NLOGGER_HANDLER_STATE_IDLE;
+}
+
+int is_data_handler_processing(struct nlogger_data_handler_struct *data_handler) {
+    return data_handler->state == NLOGGER_HANDLER_STATE_INIT || data_handler->state == NLOGGER_HANDLER_STATE_HANDLING;
 }
