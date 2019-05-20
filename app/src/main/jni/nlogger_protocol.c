@@ -6,6 +6,8 @@
 #include "nlogger_protocol.h"
 #include "nlogger_utils.h"
 #include "nlogger_error_code.h"
+#include "nlogger_android_log.h"
+#include "nlogger_constants.h"
 
 
 /**
@@ -43,12 +45,13 @@ int malloc_and_build_log_json_data(int cache_type, int flag, char *log_content, 
         }
 
         if (result_json != NULL) {
+            LOGW("protocol_log", "log result_json >>> %s", result_json);
             size_t content_length = strlen(result_json);
             size_t final_length   = content_length + 1; //加上末尾的换行符\n
             char   *log_data      = malloc(final_length);
             memset(log_data, 0, final_length);
             memcpy(log_data, result_json, content_length);
-            memcpy(log_data + content_length, "\n", 1);
+//            memcpy(log_data + content_length, "\n", 1);
             *result_json_data = log_data;
             //这里是否有必要释放内存
             free(result_json);
@@ -81,12 +84,13 @@ int malloc_and_build_cache_header_json_data(char *log_file_name, char **result_j
         }
 
         if (result_json != NULL) {
+            LOGW("protocol_log", "header result_json >>> %s", result_json);
             size_t content_length = strlen(result_json);
             size_t final_length   = content_length + 1; //加上末尾的换行符\n
             char   *log_data      = malloc(final_length);
             memset(log_data, 0, final_length);
             memcpy(log_data, result_json, content_length);
-            memcpy(log_data + content_length, "\n", 1);
+//            memcpy(log_data + content_length, "\n", 1);
             *result_json_data = log_data;
             //这里是否有必要释放内存
             free(result_json);
@@ -149,4 +153,48 @@ int parse_header_json_data(char *header_json_data, char **result_file_name, int 
         cJSON_Delete(json_content);
     }
     return result;
+}
+
+int write_mmap_cache_header_head_tag(char *cache) {
+    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 24;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 16;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 8;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 0;
+    return 4;
+}
+
+int write_mmap_cache_header_tail_tag(char *cache) {
+    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 24;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 16;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 8;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 0;
+    return 4;
+}
+
+int write_cache_section_head_tag(char *cache) {
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 24;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 16;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 8;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 0;
+    return 4;
+}
+
+int write_cache_section_tail_tag(char *cache) {
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 24;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 16;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 8;
+    cache++;
+    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 0;
+    return 4;
 }

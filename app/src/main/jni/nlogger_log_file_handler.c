@@ -263,6 +263,7 @@ int flush_cache_to_log_file(struct nlogger_log_struct *log, char *cache, size_t 
     }
     fwrite(cache, sizeof(char), cache_length, log->p_file);
     fflush(log->p_file);
+//    fclose(log->p_file);
     log->file_length += cache_length;
 
     return result;

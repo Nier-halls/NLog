@@ -228,9 +228,15 @@ int _init_and_start_new_section(struct nlogger_data_handler_struct *data_handler
         return init_result;
     }
     //压缩日志段开始，写入开始标志符号，todo 改成用魔数到形式
+//    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_HEAD_TAG;
+//    cache->p_next_write += 1;
+//    cache->content_length += 1;
+
     *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_HEAD_TAG;
     cache->p_next_write += 1;
     cache->content_length += 1;
+
+
 
     //保存 p_section_length 地址，初始化section长度字段
     cache->section_length   = 0;
@@ -408,16 +414,6 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     return result;
 }
 
-
-int _flush_cache_to_file(char *cache, size_t cache_length, FILE *log_file) {
-    //todo 写入缓存到日志文件中
-
-
-
-
-    return ERROR_CODE_OK;
-}
-
 /**
  * 重制cache缓存状态
  */
@@ -518,6 +514,9 @@ int flush_nlogger() {
 
     //step3 将缓存到日志数据写入到日志文件中
     char *cache_content = g_nlogger->cache.p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+
+    LOGD("flush", "mmap buffer addr=%ld , content addr=%ld .", g_nlogger->cache.p_buffer, cache_content);
+
     flush_cache_to_log_file(&g_nlogger->log, cache_content, g_nlogger->cache.content_length);
 
     //step4 重制状态，为下次写入日志数据做准备

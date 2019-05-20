@@ -200,7 +200,7 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
     if (data_handler->remain_data_length > 0) {
         LOGD("finish_compress", "push remain data to cache remain_length >>> %zd", data_handler->remain_data_length)
         char remain[NLOGGER_AES_ENCRYPT_UNIT];
-        memset(remain, '6', NLOGGER_AES_ENCRYPT_UNIT);
+        memset(remain, '\0', NLOGGER_AES_ENCRYPT_UNIT);
         memcpy(remain, data_handler->p_remain_data, data_handler->remain_data_length);
         //todo encrypt data
         memcpy(destination, remain, NLOGGER_AES_ENCRYPT_UNIT);
