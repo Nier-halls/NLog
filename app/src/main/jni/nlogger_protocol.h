@@ -43,12 +43,16 @@ int malloc_and_build_cache_header_json_data(char *log_file_name, char **result_j
 int parse_header_json_data(char *header_json_data, char **file_name, int **version, long **date);
 
 
-int write_mmap_cache_header_head_tag(char *cache);
+int add_mmap_head_tag(char *cache);
 
-int write_mmap_cache_header_tail_tag(char *cache);
+int add_mmap_tail_tag(char *cache);
 
-int write_cache_section_head_tag(char *cache);
+int check_mmap_head_tag(char *tag_point);
 
-int write_cache_section_tail_tag(char *cache);
+int check_mmap_tail_tag(char *cache);
+
+int add_section_head_tag(char *cache);
+
+int add_section_tail_tag(char *cache);
 
 #endif //NLOGGER_NLOGGER_PROTOCOL_H

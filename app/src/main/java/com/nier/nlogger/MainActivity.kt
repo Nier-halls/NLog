@@ -25,10 +25,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         NLoggerProxy.instance.init(this)
-        NLoggerProxy.instance.write("")
-        NLoggerProxy.instance.write("")
-        NLoggerProxy.instance.write("")
-        NLoggerProxy.instance.write("")
-        NLoggerProxy.instance.flush()
+//        NLoggerProxy.instance.write("")
+//        NLoggerProxy.instance.write("")
+//        NLoggerProxy.instance.write("")
+//        NLoggerProxy.instance.write("")
+//        NLoggerProxy.instance.flush()
     }
 }

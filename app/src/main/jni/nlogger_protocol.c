@@ -155,46 +155,56 @@ int parse_header_json_data(char *header_json_data, char **result_file_name, int 
     return result;
 }
 
-int write_mmap_cache_header_head_tag(char *cache) {
-    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 24;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 16;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 8;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC >> 0;
+int _default_write_magic_tag(char *desc, int magic) {
+    *desc = magic >> 0;
+    desc++;
+    *desc = magic >> 8;
+    desc++;
+    *desc = magic >> 16;
+    desc++;
+    *desc = magic >> 24;
     return 4;
 }
 
-int write_mmap_cache_header_tail_tag(char *cache) {
-    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 24;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 16;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 8;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC >> 0;
-    return 4;
+int add_mmap_head_tag(char *cache) {
+    return _default_write_magic_tag(cache, NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC);
 }
 
-int write_cache_section_head_tag(char *cache) {
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 24;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 16;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 8;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC >> 0;
-    return 4;
+int add_mmap_tail_tag(char *cache) {
+    return _default_write_magic_tag(cache, NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC);
 }
 
-int write_cache_section_tail_tag(char *cache) {
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 24;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 16;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 8;
-    cache++;
-    *cache = NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC >> 0;
-    return 4;
+int add_section_head_tag(char *cache) {
+    return _default_write_magic_tag(cache, NLOGGER_MMAP_CACHE_CONTENT_HEAD_MAGIC);
+}
+
+int add_section_tail_tag(char *cache) {
+    return _default_write_magic_tag(cache, NLOGGER_MMAP_CACHE_CONTENT_TAIL_MAGIC);
+}
+
+int _default_read_magic_tag(char *desc) {
+    char tag_array[4];
+    tag_array[0] = *desc;
+    desc++;
+    tag_array[1] = *desc;
+    desc++;
+    tag_array[2] = *desc;
+    desc++;
+    tag_array[3] = *desc;
+    adjust_byte_order_nlogger(tag_array);
+    return *((int *) tag_array);
+}
+
+int check_mmap_head_tag(char *tag_point) {
+    if (_default_read_magic_tag(tag_point) == NLOGGER_MMAP_CACHE_HEADER_HEAD_MAGIC) {
+        return 4;
+    }
+    return 0;
+}
+
+int check_mmap_tail_tag(char *tag_point) {
+    if (_default_read_magic_tag(tag_point) == NLOGGER_MMAP_CACHE_HEADER_TAIL_MAGIC) {
+        return 4;
+    }
+    return 0;
 }

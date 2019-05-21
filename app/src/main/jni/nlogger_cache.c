@@ -215,12 +215,16 @@ size_t write_mmap_cache_header(char *cache_buffer, char *log_file_name) {
         size_t content_length = strlen(result_header_json) + 1;
 
         LOGD("mmap_header", "build json finished. header length >>> %zd ", content_length);
-        char   *mmap_buffer   = cache_buffer;
+        char *mmap_buffer = cache_buffer;
 
 
-        *mmap_buffer = NLOGGER_MMAP_CACHE_HEADER_HEAD_TAG;
-        write_size++;
-        mmap_buffer++;
+//        *mmap_buffer = NLOGGER_MMAP_CACHE_HEADER_HEAD_TAG;
+//        write_size++;
+//        mmap_buffer++;
+
+        int written_tag_size = add_mmap_head_tag(mmap_buffer);
+        write_size += written_tag_size;
+        mmap_buffer += written_tag_size;
 
         *mmap_buffer = content_length;
         write_size++;
@@ -234,8 +238,12 @@ size_t write_mmap_cache_header(char *cache_buffer, char *log_file_name) {
         mmap_buffer += content_length;
         write_size += content_length;
 
-        *mmap_buffer = NLOGGER_MMAP_CACHE_HEADER_TAIL_TAG;
-        write_size++;
+//        *mmap_buffer = NLOGGER_MMAP_CACHE_HEADER_TAIL_TAG;
+//        write_size++;
+
+        written_tag_size = add_mmap_tail_tag(mmap_buffer);
+        write_size += written_tag_size;
+
     }
 
     if (result_header_json != NULL) {
@@ -262,11 +270,18 @@ int parse_mmap_cache_head(char *cache_buffer, char **file_name) {
         return ERROR_CODE_INVALID_BUFFER_POINT_ON_PARSE_MMAP_HEADER;
     }
     //检查协议头是否正确
-    if (*mmap_buffer != NLOGGER_MMAP_CACHE_HEADER_HEAD_TAG) {
+//    if (*mmap_buffer != NLOGGER_MMAP_CACHE_HEADER_HEAD_TAG) {
+//        return ERROR_CODE_INVALID_HEAD_OR_TAIL_TAG_ON_PARSE_MMAP_HEADER;
+//    }
+
+    int head_tag_size = check_mmap_head_tag(mmap_buffer);
+    //check_mmap_head_tag 返回当前head tag所占用的长度，如果返回0则代表失败
+    if (!head_tag_size) {
         return ERROR_CODE_INVALID_HEAD_OR_TAIL_TAG_ON_PARSE_MMAP_HEADER;
     }
-    mmap_buffer++;
-    handled_length++;
+
+    mmap_buffer += head_tag_size;
+    handled_length += head_tag_size;
 
     length_array[0] = *mmap_buffer;
     mmap_buffer++;
@@ -284,14 +299,20 @@ int parse_mmap_cache_head(char *cache_buffer, char **file_name) {
     if (header_content_length < 0 || header_content_length > NLOGGER_MMAP_CACHE_MAX_HEADER_CONTENT_SIZE) {
         return ERROR_CODE_INVALID_HEADER_LENGTH_ON_PARSE_MMAP_HEADER;
     }
-    LOGD("parse_mmap_h", "parse get head next >>> %c", *mmap_buffer )
+    LOGD("parse_mmap_h", "parse get head next >>> %c", *mmap_buffer)
     mmap_buffer += header_content_length;
     //检查协议尾部是否正确
-    if (*mmap_buffer != NLOGGER_MMAP_CACHE_HEADER_TAIL_TAG) {
-        LOGD("parse_mmap_h", "parse get tail >>> %c", *mmap_buffer )
-        LOGD("parse_mmap_h", "parse get tail >>> %c", *(mmap_buffer -3))
+//    if (*mmap_buffer != NLOGGER_MMAP_CACHE_HEADER_TAIL_TAG) {
+//        LOGD("parse_mmap_h", "parse get tail >>> %c", *mmap_buffer )
+//        LOGD("parse_mmap_h", "parse get tail >>> %c", *(mmap_buffer -3))
+//        return ERROR_CODE_INVALID_HEAD_OR_TAIL_TAG_ON_PARSE_MMAP_HEADER;
+//    }
+
+    int tail_tag_size = check_mmap_tail_tag(mmap_buffer);
+    if (!tail_tag_size) {
         return ERROR_CODE_INVALID_HEAD_OR_TAIL_TAG_ON_PARSE_MMAP_HEADER;
     }
+
     mmap_buffer -= header_content_length;
 
     char content[header_content_length];
@@ -303,12 +324,11 @@ int parse_mmap_cache_head(char *cache_buffer, char **file_name) {
     }
 
     //记录缓存的长度地址和长度值
-    mmap_buffer += header_content_length;
+//    mmap_buffer += header_content_length;
     handled_length += header_content_length;
 
     //加上尾部标志的长度
-    mmap_buffer++;
-    handled_length++;
+    handled_length += tail_tag_size;
 
     return handled_length;
 }

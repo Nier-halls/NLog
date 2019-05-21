@@ -232,11 +232,9 @@ int _init_and_start_new_section(struct nlogger_data_handler_struct *data_handler
 //    cache->p_next_write += 1;
 //    cache->content_length += 1;
 
-    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_HEAD_TAG;
-    cache->p_next_write += 1;
-    cache->content_length += 1;
-
-
+    int written_length = add_section_head_tag(cache->p_next_write);
+    cache->p_next_write += written_length;
+    cache->content_length += written_length;
 
     //保存 p_section_length 地址，初始化section长度字段
     cache->section_length   = 0;
@@ -268,10 +266,14 @@ int _finish_and_end_current_section(struct nlogger_data_handler_struct *data_han
     cache->content_length += finish_compressed_length;
 
     //压缩日志段结束，写入结束标志符号，todo 改成用魔数到形式
-    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_TAIL_TAG;
-    cache->p_next_write += 1;
-    cache->content_length += 1;
+//    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_TAIL_TAG;
+//    cache->p_next_write += 1;
+//    cache->content_length += 1;
 //    }
+
+    int written_length = add_section_tail_tag(cache->p_next_write);
+    cache->p_next_write += written_length;
+    cache->content_length += written_length;
 
     LOGI("finish_section", "finish_compressed_length end.")
     return ERROR_CODE_OK;
