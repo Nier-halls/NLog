@@ -1,7 +1,6 @@
 
 #include <sys/time.h>
 #include <memory.h>
-#include "console_util.h"
 
 #define NLOGGER_BYTE_ORDER_NONE  0
 #define NLOGGER_BYTE_ORDER_HIGH 1

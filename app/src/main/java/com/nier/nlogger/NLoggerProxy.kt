@@ -41,7 +41,7 @@ class NLoggerProxy {
             context.applicationContext.getExternalFilesDir(null).absolutePath + File.separator + "nlogger",
             10 * 1024 * 1024,
             "nier12345678auto",
-            "nier12345678auto"
+            "ivnier1234autoiv"
         )
 //        }.start()
     }

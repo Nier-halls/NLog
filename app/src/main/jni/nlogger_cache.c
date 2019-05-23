@@ -22,7 +22,7 @@
 #include <sys/mman.h>
 #include <zconf.h>
 #include <malloc.h>
-#include <cJSON.h>
+#include "cJSON.h"
 #include "nlogger_cache.h"
 #include "nlogger_android_log.h"
 #include "nlogger_error_code.h"

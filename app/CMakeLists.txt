@@ -3,7 +3,11 @@ SET(CMAKE_C_FLAGS_DEBUG "-g")
 SET(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
 
 #当前库的外部依赖库
-SET(NLOGGER_NATIVE_DEPENDENCE ../nlogger-native)
+#SET(NLOGGER_NATIVE_DEPENDENCE ../nlogger-native)
+SET(ENCRYPT_LIBRARY_INCLUDE ./src/main/jni/encrypt/mbedtls/include)
+
+SET(ENCRYPT_LIBRARY_SOURCE ./src/main/jni/encrypt/mbedtls/library)
+
 #当前库需要呗一起编译进去的的源码文件
 SET(SOURCE_FILE src/main/jni/nlogger_native_interface.h
         src/main/jni/nlogger_native_interface.c
@@ -36,13 +40,17 @@ SET(SOURCE_FILE src/main/jni/nlogger_native_interface.h
 #        # you want CMake to locate.
 #        log)
 
-include_directories(${NLOGGER_NATIVE_DEPENDENCE})
+#include_directories(${NLOGGER_NATIVE_DEPENDENCE} ${ENCRYPT_LIBRARY_INCLUDE})
+#
+#add_subdirectory(${NLOGGER_NATIVE_DEPENDENCE} .out)
 
-add_subdirectory(${NLOGGER_NATIVE_DEPENDENCE} .out)
+include_directories(${ENCRYPT_LIBRARY_INCLUDE})
+
+add_subdirectory(${ENCRYPT_LIBRARY_SOURCE})
 
 add_library(nlogger SHARED ${SOURCE_FILE})
 
-target_link_libraries(nlogger log z nlogger-native)
+target_link_libraries(nlogger log z mbedcrypto)
 
 
 if (${CMAKE_HOST_SYSTEM_NAME} MATCHES "Windows")

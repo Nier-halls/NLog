@@ -5,7 +5,7 @@
 #include <zlib.h>
 #include "stddef.h"
 #include "string.h"
-#include <cJSON.h>
+#include "cJSON.h"
 #include "nlogger_json_util.h"
 
 

@@ -9,7 +9,7 @@ extern "C"
 #include <jni.h>
 #include <stdlib.h>
 #include <string.h>
-#include <clogan_core.h>
+//#include <clogan_core.h>
 
 /**
  * JNI write interface

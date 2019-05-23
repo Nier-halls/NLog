@@ -39,7 +39,7 @@
 typedef struct nlogger_data_handler_struct {
     z_stream *p_stream;
     char     *p_encrypt_key;
-    char     *p_encrypt_iv;
+    char     *p_encrypt_iv_source;
     char     *p_encrypt_iv_pending;
     char     p_remain_data[16];
     size_t   remain_data_length;

@@ -221,7 +221,7 @@ int _check_can_flush_after_compress(struct nlogger_cache_struct *cache) {
     return result;
 }
 
-int _init_and_start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
+int _start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
     LOGI("real_write", "start _real_write on new section");
     int init_result = init_zlib(data_handler);
     if (init_result != ERROR_CODE_OK) {
@@ -252,7 +252,7 @@ int _init_and_start_new_section(struct nlogger_data_handler_struct *data_handler
 /**
  * 结束一段压缩过程，并且将剩余数据全部都写入到缓存中
  */
-int _finish_and_end_current_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
+int _end_current_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
 //    if (data_handler->state == NLOGGER_HANDLER_STATE_HANDLING) {
     //结束一次压缩流程，并且更新length，结束的时候会写入一些尾部标志位
     size_t finish_compressed_length = finish_compress_data(data_handler, cache->p_next_write);
@@ -287,7 +287,7 @@ int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
 
     //判断是否有初始化，一般情况完成一个section的压缩就要重新初始化
     if (!is_data_handler_init(data_handler)) {
-        _init_and_start_new_section(data_handler, cache);
+        _start_new_section(data_handler, cache);
         _update_length(cache);
     }
 
@@ -311,7 +311,7 @@ int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
 
     //判断是否需要结束一段日志数据段
     if (compressed_length > NLOGGER_COMPRESS_SECTION_THRESHOLD || 1) {
-        int finish_result = _finish_and_end_current_section(data_handler, cache);
+        int finish_result = _end_current_section(data_handler, cache);
         if (finish_result != ERROR_CODE_OK) {
             return finish_result;
         }
@@ -472,7 +472,7 @@ int flush_nlogger() {
 
     //step1 检查数据处理状态，是否在压缩状态，如果在压缩处理数据阶段则先finish
     if (is_data_handler_processing(&g_nlogger->data_handler)) {
-        int finish_result = _finish_and_end_current_section(&g_nlogger->data_handler, &g_nlogger->cache);
+        int finish_result = _end_current_section(&g_nlogger->data_handler, &g_nlogger->cache);
         if (finish_result != ERROR_CODE_OK) {
             return finish_result;
         }

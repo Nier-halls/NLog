@@ -7,6 +7,7 @@
 #include "nlogger_error_code.h"
 #include "nlogger_android_log.h"
 #include "nlogger_constants.h"
+#include "encrypt/mbedtls/include/mbedtls/aes.h"
 
 
 int init_encrypt(struct nlogger_data_handler_struct *data_handler, const char *encrypt_key, const char *encrypt_iv) {
@@ -16,7 +17,7 @@ int init_encrypt(struct nlogger_data_handler_struct *data_handler, const char *e
     data_handler->p_encrypt_key = temp_encrypt_key;
     char *temp_encrypt_iv = malloc(sizeof(char) * 16);
     memcpy(temp_encrypt_iv, encrypt_iv, sizeof(char) * 16);
-    data_handler->p_encrypt_iv         = temp_encrypt_iv;
+    data_handler->p_encrypt_iv_source  = temp_encrypt_iv;
     data_handler->p_encrypt_iv_pending = malloc(sizeof(char) * 16);
     return ERROR_CODE_OK;
 }
@@ -55,7 +56,7 @@ int init_zlib(struct nlogger_data_handler_struct *data_handler) {
 
     data_handler->remain_data_length = 0;
     //初始化填充iv
-    memcpy(data_handler->p_encrypt_iv_pending, data_handler->p_encrypt_iv, 16);
+    memcpy(data_handler->p_encrypt_iv_pending, data_handler->p_encrypt_iv_source, 16);
 
     data_handler->state = NLOGGER_HANDLER_STATE_INIT;
     return ERROR_CODE_OK;
@@ -89,9 +90,20 @@ size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *dest
         memcpy(next_copy_point, data, copy_data_length);
         LOGE("encrypt", "write data >>> %zd", handle_data_length)
         //todo encrypt
-        memcpy(destination, handle_data, handle_data_length);
+//        memcpy(destination, handle_data, handle_data_length);
+
+        mbedtls_aes_context context;
+        mbedtls_aes_setkey_enc(&context, (unsigned char *) data_handler->p_encrypt_key, 128);
+        mbedtls_aes_crypt_cbc(
+                &context,
+                MBEDTLS_AES_ENCRYPT,
+                handle_data_length,
+                (unsigned char *) data_handler->p_encrypt_iv_pending,
+                handle_data,
+                (unsigned char *) destination
+        ); //加密
+
         handled += handle_data_length;
-//        curr += handle_data_length;
     }
 
 
@@ -107,9 +119,6 @@ size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *dest
             memcpy(next_copy_point, data, remain_data_length);
         }
         data_handler->remain_data_length = remain_data_length;
-//
-//        memcpy(curr, data_handler->p_remain_data, remain_data_length);
-//        handled += remain_data_length;
     }
 
     return handled;
@@ -202,8 +211,20 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
         char remain[NLOGGER_AES_ENCRYPT_UNIT];
         memset(remain, '\0', NLOGGER_AES_ENCRYPT_UNIT);
         memcpy(remain, data_handler->p_remain_data, data_handler->remain_data_length);
-        //todo encrypt data
-        memcpy(destination, remain, NLOGGER_AES_ENCRYPT_UNIT);
+        //todo encrypt data 是不是需要抽出来
+
+        mbedtls_aes_context context;
+        mbedtls_aes_setkey_enc(&context, (unsigned char *) data_handler->p_encrypt_key, 128);
+        mbedtls_aes_crypt_cbc(
+                &context,
+                MBEDTLS_AES_ENCRYPT,
+                NLOGGER_AES_ENCRYPT_UNIT,
+                (unsigned char *) data_handler->p_encrypt_iv_pending,
+                (unsigned char *) remain,
+                (unsigned char *) destination
+        );
+
+//        memcpy(destination, remain, NLOGGER_AES_ENCRYPT_UNIT);
         data_handler->remain_data_length = 0;
         handled += NLOGGER_AES_ENCRYPT_UNIT;
     }

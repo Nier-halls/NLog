@@ -5,7 +5,11 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
+import java.util.*
 import java.util.zip.GZIPInputStream
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 /**
  * Created by fgd
@@ -20,8 +24,8 @@ fun main(args: Array<String>) {
     Gzip().inflate()
 }
 
-//const val FILE_NAME = "niers_log"
-const val FILE_NAME = "cache.mmap"
+const val FILE_NAME = "niers_log"
+//const val FILE_NAME = "cache.mmap"
 
 class Gzip {
 
@@ -63,17 +67,21 @@ class Gzip {
 //        }
 
         val contentBuffer = ByteBuffer.allocate(length)
-
-
         fileChannel.read(contentBuffer, contentIndex)
+
+//        "nier12345678auto"
+//        "ivnier1234autoiv"
+
+        val cipher = Cipher.getInstance("AES/CBC/NoPadding")
+        val key = SecretKeySpec("nier12345678auto".toByteArray(), "AES")
+        val iv = IvParameterSpec("ivnier1234autoiv".toByteArray())
+        cipher.init(Cipher.DECRYPT_MODE, key, iv)
+        val decrypt = cipher.doFinal(contentBuffer.array())
+
         println("contentIndex.toInt() >>>${contentIndex.toInt()}")
 
-//        for (i in 0..(length - 1)) {
-//            println(">>>> index $i:${0xff and contentBuffer[i].toInt()}")
-//        }
-
         try {
-            val byteIn = ByteArrayInputStream(contentBuffer.array())
+            val byteIn = ByteArrayInputStream(decrypt)
 
             val gzipIn = GZIPInputStream(byteIn)
 
