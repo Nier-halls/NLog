@@ -13,7 +13,7 @@
 #include "string.h"
 #include <malloc.h>
 #include <sys/stat.h>
-#include "cJSON.h"
+#include "utils/cJSON.h"
 #include <sys/mman.h>
 #include "nlogger_data_handler.h"
 #include "nlogger_log_file_handler.h"

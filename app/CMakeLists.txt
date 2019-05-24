@@ -11,20 +11,20 @@ SET(ENCRYPT_LIBRARY_SOURCE ./src/main/jni/encrypt/mbedtls/library)
 #当前库需要呗一起编译进去的的源码文件
 SET(SOURCE_FILE src/main/jni/nlogger_native_interface.h
         src/main/jni/nlogger_native_interface.c
-        src/main/jni/nlogger_android_log.h
+        src/main/jni/utils/nlogger_android_log.h
         src/main/jni/nlogger.h
         src/main/jni/nlogger.c
         src/main/jni/nlogger_constants.h
-        src/main/jni/nlogger_file_utils.c
-        src/main/jni/nlogger_file_utils.h
+        src/main/jni/utils/nlogger_file_utils.c
+        src/main/jni/utils/nlogger_file_utils.h
         src/main/jni/nlogger_cache.h
         src/main/jni/nlogger_cache.c
-        src/main/jni/nlogger_json_util.h
-        src/main/jni/nlogger_json_util.c
-        src/main/jni/nlogger_utils.h
-        src/main/jni/nlogger_utils.c
-        src/main/jni/cJSON.h
-        src/main/jni/cJSON.c
+        src/main/jni/utils/nlogger_json_util.h
+        src/main/jni/utils/nlogger_json_util.c
+        src/main/jni/utils/nlogger_utils.h
+        src/main/jni/utils/nlogger_utils.c
+        src/main/jni/utils/cJSON.h
+        src/main/jni/utils/cJSON.c
         src/main/jni/nlogger_protocol.h
         src/main/jni/nlogger_protocol.c
         src/main/jni/nlogger_data_handler.h

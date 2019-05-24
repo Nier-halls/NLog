@@ -4,9 +4,9 @@
 
 #include <malloc.h>
 #include "nlogger_protocol.h"
-#include "nlogger_utils.h"
+#include "utils/nlogger_utils.h"
 #include "nlogger_error_code.h"
-#include "nlogger_android_log.h"
+#include "utils/nlogger_android_log.h"
 #include "nlogger_constants.h"
 
 

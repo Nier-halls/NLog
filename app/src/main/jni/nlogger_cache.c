@@ -22,12 +22,12 @@
 #include <sys/mman.h>
 #include <zconf.h>
 #include <malloc.h>
-#include "cJSON.h"
+#include "utils/cJSON.h"
 #include "nlogger_cache.h"
-#include "nlogger_android_log.h"
+#include "utils/nlogger_android_log.h"
 #include "nlogger_error_code.h"
 #include "nlogger_constants.h"
-#include "nlogger_utils.h"
+#include "utils/nlogger_utils.h"
 #include "nlogger_protocol.h"
 
 int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {

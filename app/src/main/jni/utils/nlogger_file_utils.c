@@ -7,7 +7,7 @@
 #include <memory.h>
 #include <zconf.h>
 #include <sys/stat.h>
-#include "nlogger_error_code.h"
+#include "../nlogger_error_code.h"
 
 #define LOGAN_MAX_PATH 1024
 

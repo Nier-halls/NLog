@@ -5,7 +5,7 @@
 #include <malloc.h>
 #include "nlogger_data_handler.h"
 #include "nlogger_error_code.h"
-#include "nlogger_android_log.h"
+#include "utils/nlogger_android_log.h"
 #include "nlogger_constants.h"
 #include "encrypt/mbedtls/include/mbedtls/aes.h"
 
@@ -61,6 +61,8 @@ int init_zlib(struct nlogger_data_handler_struct *data_handler) {
     data_handler->state = NLOGGER_HANDLER_STATE_INIT;
     return ERROR_CODE_OK;
 }
+
+
 
 
 /**
@@ -211,7 +213,6 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
         char remain[NLOGGER_AES_ENCRYPT_UNIT];
         memset(remain, '\0', NLOGGER_AES_ENCRYPT_UNIT);
         memcpy(remain, data_handler->p_remain_data, data_handler->remain_data_length);
-        //todo encrypt data 是不是需要抽出来
 
         mbedtls_aes_context context;
         mbedtls_aes_setkey_enc(&context, (unsigned char *) data_handler->p_encrypt_key, 128);

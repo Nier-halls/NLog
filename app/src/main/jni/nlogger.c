@@ -6,13 +6,13 @@
 
 
 #include "nlogger_data_handler.h"
-#include "nlogger_android_log.h"
+#include "utils/nlogger_android_log.h"
 #include "nlogger_error_code.h"
 #include "nlogger_constants.h"
-#include "nlogger_file_utils.h"
+#include "utils/nlogger_file_utils.h"
 #include "nlogger_cache.h"
-#include "nlogger_json_util.h"
-#include "nlogger_utils.h"
+#include "utils/nlogger_json_util.h"
+#include "utils/nlogger_utils.h"
 #include "nlogger_protocol.h"
 
 #include "nlogger.h"
@@ -108,6 +108,7 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
 
     if (create_cache_result == NLOGGER_INIT_CACHE_FAILED) {
         g_nlogger->state = NLOGGER_STATE_ERROR;
+        return ERROR_CODE_CREATE_CACHE_FAILED;
     } else {
         //标记当前初始化阶段成功，避免重复初始化
         g_nlogger->state            = NLOGGER_STATE_INIT;
@@ -404,6 +405,7 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
 
     LOGI("write", "raw log data size >>> %zd, log data >>> %s ", log_json_data_length, result_json_data)
 
+    //todo 移到其它cache中
     if (g_nlogger->cache.p_next_write == NULL) {
         LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
         print_current_nlogger(g_nlogger);
@@ -515,6 +517,7 @@ int flush_nlogger() {
     }
 
     //step3 将缓存到日志数据写入到日志文件中
+    //todo 返回地址  返回长度
     char *cache_content = g_nlogger->cache.p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
 
     LOGD("flush", "mmap buffer addr=%ld , content addr=%ld .", g_nlogger->cache.p_buffer, cache_content);

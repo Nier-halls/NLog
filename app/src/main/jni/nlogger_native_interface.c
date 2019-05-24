@@ -1,6 +1,6 @@
 
 #include "nlogger_native_interface.h"
-#include "nlogger_android_log.h"
+#include "utils/nlogger_android_log.h"
 #include "nlogger.h"
 
 JNIEXPORT jint JNICALL
