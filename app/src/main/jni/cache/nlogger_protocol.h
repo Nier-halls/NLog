@@ -5,8 +5,8 @@
 #include <zlib.h>
 #include "stddef.h"
 #include "string.h"
-#include "utils/cJSON.h"
-#include "utils/nlogger_json_util.h"
+#include "../utils/cJSON.h"
+#include "../utils/nlogger_json_util.h"
 
 
 #ifndef NLOGGER_NLOGGER_PROTOCOL_H

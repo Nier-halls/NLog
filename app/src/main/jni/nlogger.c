@@ -5,55 +5,20 @@
  */
 
 
-#include "nlogger_data_handler.h"
+#include "compress/nlogger_data_handler.h"
 #include "utils/nlogger_android_log.h"
 #include "nlogger_error_code.h"
 #include "nlogger_constants.h"
 #include "utils/nlogger_file_utils.h"
-#include "nlogger_cache.h"
+#include "cache/nlogger_cache_handler.h"
 #include "utils/nlogger_json_util.h"
 #include "utils/nlogger_utils.h"
-#include "nlogger_protocol.h"
+#include "cache/nlogger_protocol.h"
 
 #include "nlogger.h"
 
 static nlogger *g_nlogger;
 
-/**
- * 创建mmap缓存文件用的路径（包含缓存文件名）
- */
-int _create_cache_file_path(const char *cache_file_dir, char **result_path) {
-    if (is_empty_string(cache_file_dir)) {
-        return ERROR_CODE_ILLEGAL_ARGUMENT;
-    }
-    int appendSeparate = 0;
-    if (cache_file_dir[strlen(cache_file_dir)] != '/') {
-        appendSeparate = 1;
-    }
-    size_t path_string_length = strlen(cache_file_dir) +
-                                (appendSeparate ? strlen("/") : 0) +
-                                strlen(NLOGGER_CACHE_DIR) +
-                                strlen("/") +
-                                strlen(NLOGGER_CACHE_FILE_NAME) +
-                                strlen("\0");
-    *result_path = malloc(path_string_length);
-    if (*result_path == NULL) {
-        return ERROR_CODE_MALLOC_CACHE_DIR_STRING;
-    }
-    memset(*result_path, 0, path_string_length);
-    memcpy(*result_path, cache_file_dir, strlen(cache_file_dir));
-    if (appendSeparate) {
-        strcat(*result_path, "/");
-    }
-    strcat(*result_path, NLOGGER_CACHE_DIR);
-    strcat(*result_path, "/");
-    if (makedir_nlogger(*result_path) < 0) {
-        return ERROR_CODE_CREATE_LOG_CACHE_DIR_FAILED;
-    }
-    LOGD("init", "create mmap cache dir_string >>> %s", *result_path);
-    strcat(*result_path, NLOGGER_CACHE_FILE_NAME);
-    return ERROR_CODE_OK;
-}
 
 /**
  * 初始化路径参数，并且创建文件
@@ -90,12 +55,6 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     //默认先把状态设置成error，稍后初始化成功以后再把状态设置到init
     g_nlogger->state = NLOGGER_STATE_ERROR;
 
-    //todo 检查是否有原来的 结构体存在 考虑释放原来的结构体
-    //创建mmap缓存文件的目录
-    char *final_mmap_cache_path;
-    _create_cache_file_path(cache_file_dir, &final_mmap_cache_path);
-    LOGD("init", "finish create log cache path>>>> %s ", final_mmap_cache_path);
-    g_nlogger->cache.p_file_path = final_mmap_cache_path;
 
     //创建日志文件的存放目录
     set_log_file_save_dir(&g_nlogger->log, log_file_dir);
@@ -103,98 +62,22 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     //配置加密相关的参数
     init_encrypt(&g_nlogger->data_handler, encrypt_key, encrypt_iv);
 
-    //初始化缓存文件，首先采用mmap缓存，失败则用内存缓存
-    int create_cache_result = create_cache_nlogger(g_nlogger->cache.p_file_path, &g_nlogger->cache.p_buffer);
+    //初始换并且创建缓存（优先创建mmap）
+    int init_cache_result = init_cache(&g_nlogger->cache, cache_file_dir);
 
-    if (create_cache_result == NLOGGER_INIT_CACHE_FAILED) {
+    if (init_cache_result == NLOGGER_INIT_CACHE_FAILED) {
         g_nlogger->state = NLOGGER_STATE_ERROR;
         return ERROR_CODE_CREATE_CACHE_FAILED;
     } else {
         //标记当前初始化阶段成功，避免重复初始化
-        g_nlogger->state            = NLOGGER_STATE_INIT;
-        g_nlogger->cache.cache_mode = create_cache_result;
+        g_nlogger->state = NLOGGER_STATE_INIT;
     }
+
     print_current_nlogger(g_nlogger);
 
-    LOGD("init", "init cache result >>> %d.", create_cache_result);
-
-    //todo try flush cache log
     flush_nlogger();
 
     return ERROR_CODE_OK;
-}
-
-/**
- * 初始化配置缓存管理结构体
- *
- * @param log_file_name
- * @param cache
- * @return
- */
-int _init_cache_on_new_log_file_opened(struct nlogger_cache_struct *cache, const char *log_file_name) {
-
-    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE) {
-        //直接忽略旧的日志头，覆盖写入新的日志头，指定当前mmap文件映射的log file name
-        size_t written_header_length = write_mmap_cache_header(cache->p_buffer, log_file_name);
-
-        if (written_header_length > 0) {
-            cache->p_content_length = cache->p_buffer + written_header_length;
-        } else {
-            //写入失败则切换成Memory缓存模式
-            //（不能建立关系就失去了意外中断导致日志丢失的优势，这和内存缓存没有区别）
-            if (cache->p_buffer != NULL) {
-                munmap(cache->p_buffer, NLOGGER_MMAP_CACHE_SIZE);
-            }
-            //路径传空，强制Memory模式缓存
-            if (NLOGGER_INIT_CACHE_FAILED == create_cache_nlogger(NULL, &cache->p_buffer)) {
-                return ERROR_CODE_INIT_CACHE_FAILED;
-            }
-        }
-    }
-
-    //mmap模式会在完成映射关系（写入file name）后指定代表content长度指针的位置
-    //memory模式需要手动指定代表长度的指针，也就是内存缓存的开头地址
-    if (cache->cache_mode == NLOGGER_MEMORY_CACHE_MODE) {
-        cache->p_content_length = cache->p_buffer;
-    }
-    cache->p_next_write   = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
-    cache->content_length = 0;
-    cache->section_length = 0;
-
-    return ERROR_CODE_OK;
-}
-
-/**
- * 检查缓存是否健康，如果mmap缓存有问题及时切换成memory缓存
- *
- * @param cache
- * @return
- */
-int _check_cache_healthy(struct nlogger_cache_struct *cache) {
-    int result = ERROR_CODE_OK;
-    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE &&
-        !is_file_exist_nlogger(cache->p_file_path)) {
-        //mmap缓存文件不见了，这个时候主动切换成Memory缓存
-        if (cache->p_buffer != NULL) {
-            munmap(cache->p_buffer, NLOGGER_MMAP_CACHE_SIZE);
-        }
-        //路径传空，强制Memory缓存
-        if (NLOGGER_INIT_CACHE_FAILED == create_cache_nlogger(NULL, &cache->p_buffer)) {
-            return ERROR_CODE_INIT_CACHE_FAILED;
-        }
-        cache->p_content_length = cache->p_buffer;
-        cache->p_next_write     = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
-        cache->content_length   = 0;
-        cache->section_length   = 0;
-        result = ERROR_CODE_CHANGE_CACHE_MODE_TO_MEMORY;
-    }
-
-    //最后检查一下缓存指针是否存在，如果不存在则直接报错返回
-    if (cache->p_buffer == NULL) {
-        result = ERROR_CODE_INIT_CACHE_FAILED;
-    }
-
-    return result;
 }
 
 /**
@@ -265,12 +148,6 @@ int _end_current_section(struct nlogger_data_handler_struct *data_handler, struc
     cache->p_next_write += finish_compressed_length;
     cache->section_length += finish_compressed_length;
     cache->content_length += finish_compressed_length;
-
-    //压缩日志段结束，写入结束标志符号，todo 改成用魔数到形式
-//    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_TAIL_TAG;
-//    cache->p_next_write += 1;
-//    cache->content_length += 1;
-//    }
 
     int written_length = add_section_tail_tag(cache->p_next_write);
     cache->p_next_write += written_length;
@@ -362,11 +239,16 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     }
 
     //step1 检查缓存状态
-    int check_cache_result = _check_cache_healthy(&g_nlogger->cache);
+    int check_cache_result = check_cache_healthy(&g_nlogger->cache);
+
     if (check_cache_result <= 0) {
+        LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
         LOGE("write_nlogger", "_check_cache_healthy on error >>> %d", check_cache_result)
+        print_current_nlogger(g_nlogger);
+        LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
         return check_cache_result;
     }
+
     //step1.1 mmap缓存有问题，避免remain中缓存数据影响新插入的日志，先把它清空
     //todo 封装一个重置data_handler的方法
     if (check_cache_result == ERROR_CODE_CHANGE_CACHE_MODE_TO_MEMORY) {
@@ -384,7 +266,7 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     //step2.1 第一次创建或者打开日志文件，需要重新指定当前mmap缓存指向的日志文件
     //方便下次启动将缓存flush到指定的日志文件中
     if (check_log_result == ERROR_CODE_NEW_LOG_FILE_OPENED) {
-        int init_cache_result = _init_cache_on_new_log_file_opened(&g_nlogger->cache, log_file_name);
+        int init_cache_result = map_log_file_with_cache(&g_nlogger->cache, log_file_name);
         if (init_cache_result != ERROR_CODE_OK) {
             return init_cache_result;
         }
@@ -393,7 +275,7 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     //step3 组装日志
     char *result_json_data;
     int  build_result;
-    build_result = malloc_and_build_log_json_data(g_nlogger->cache.cache_mode, flag, log_content, local_time,
+    build_result = malloc_and_build_log_json_data(current_cache_mode(&g_nlogger->cache), flag, log_content, local_time,
                                                   thread_name, thread_id, is_main, &result_json_data);
     if (build_result != ERROR_CODE_OK || result_json_data == NULL) {
         return build_result;
@@ -405,62 +287,12 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
 
     LOGI("write", "raw log data size >>> %zd, log data >>> %s ", log_json_data_length, result_json_data)
 
-    //todo 移到其它cache中
-    if (g_nlogger->cache.p_next_write == NULL) {
-        LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
-        print_current_nlogger(g_nlogger);
-        LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
-    }
-
     //step4 分段压缩写入
     int result = _write_data(&g_nlogger->cache, &g_nlogger->data_handler, result_json_data, log_json_data_length);
 
     return result;
 }
 
-/**
- * 重制cache缓存状态
- */
-int _reset_nlogger_cache(struct nlogger_cache_struct *cache) {
-    cache->content_length = 0;
-    cache->p_next_write   = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
-    update_cache_content_length(cache->p_content_length, cache->content_length);
-
-    return ERROR_CODE_OK;
-}
-
-/**
- * 解析mmap缓存的header，根据header来
- * 初始化缓存的几个重要指针，以及返回 日志名 指针
- * 
- * @param cache 
- * @param file_name 
- * @return 
- */
-int _init_cache_from_mmap_buffer(struct nlogger_cache_struct *cache, char **log_file_name) {
-    int error_code = ERROR_CODE_CAN_NOT_PARSE_ON_MEMORY_CACHE_MODE;
-    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE) {
-        //解析日志文件名以及cache header的长度，如果结果大于0代表成功，结果数值就是header的长度
-        int parse_result = parse_mmap_cache_head(cache->p_buffer, log_file_name);
-        if (parse_result > 0) {
-            cache->p_content_length = cache->p_buffer + parse_result;
-            //解析日志cache content的长度，如果结果大于0代表成功，结果数值就是content的长度
-            parse_result = parse_mmap_cache_content_length(cache->p_content_length);
-            if (parse_result > 0) {
-                cache->content_length = (unsigned int) parse_result;
-                error_code = ERROR_CODE_OK;
-            } else {
-                LOGE("flush_nlogger", "parse_mmap_cache_content_length on error, error code  >>> %d", parse_result);
-                error_code = parse_result;
-            }
-        } else {
-            LOGE("flush_nlogger", "parse_mmap_cache_header on error, error code >>> %d", parse_result);
-            error_code = parse_result;
-        }
-    }
-
-    return error_code;
-}
 
 /**
  * 将缓存的数据写入到日志文件中
@@ -487,8 +319,8 @@ int flush_nlogger() {
     char *file_name                     = NULL;
     int  file_name_configured           = is_log_file_name_valid(&g_nlogger->log) == ERROR_CODE_OK;
     //step2.1 获取缓存对应到日志文件名
-    if (!file_name_configured && g_nlogger->cache.cache_mode == NLOGGER_MMAP_CACHE_MODE) {
-        int init_result = _init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
+    if (!file_name_configured && NLOGGER_MMAP_CACHE_MODE == current_cache_mode(&g_nlogger->cache)) {
+        int init_result = init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
         if (init_result != ERROR_CODE_OK) {
             return init_result;
         }
@@ -518,14 +350,13 @@ int flush_nlogger() {
 
     //step3 将缓存到日志数据写入到日志文件中
     //todo 返回地址  返回长度
-    char *cache_content = g_nlogger->cache.p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+    char   *cache_content = cache_content_head(&g_nlogger->cache);
+    size_t content_length = cache_content_length(&g_nlogger->cache);
 
-    LOGD("flush", "mmap buffer addr=%ld , content addr=%ld .", g_nlogger->cache.p_buffer, cache_content);
-
-    flush_cache_to_log_file(&g_nlogger->log, cache_content, g_nlogger->cache.content_length);
+    flush_cache_to_log_file(&g_nlogger->log, cache_content, content_length);
 
     //step4 重制状态，为下次写入日志数据做准备
-    _reset_nlogger_cache(&g_nlogger->cache);
+    reset_nlogger_cache(&g_nlogger->cache);
 
     print_current_nlogger(g_nlogger);
 

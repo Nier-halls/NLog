@@ -58,3 +58,5 @@ size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler,
 int is_data_handler_init(struct nlogger_data_handler_struct *data_handler);
 
 int is_data_handler_processing(struct nlogger_data_handler_struct *data_handler);
+
+int reset_data_handler(struct nlogger_data_handler_struct *data_handler);

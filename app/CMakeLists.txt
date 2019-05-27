@@ -17,20 +17,20 @@ SET(SOURCE_FILE src/main/jni/nlogger_native_interface.h
         src/main/jni/nlogger_constants.h
         src/main/jni/utils/nlogger_file_utils.c
         src/main/jni/utils/nlogger_file_utils.h
-        src/main/jni/nlogger_cache.h
-        src/main/jni/nlogger_cache.c
+        src/main/jni/cache/nlogger_cache_handler.h
+        src/main/jni/cache/nlogger_cache_handler.c
         src/main/jni/utils/nlogger_json_util.h
         src/main/jni/utils/nlogger_json_util.c
         src/main/jni/utils/nlogger_utils.h
         src/main/jni/utils/nlogger_utils.c
         src/main/jni/utils/cJSON.h
         src/main/jni/utils/cJSON.c
-        src/main/jni/nlogger_protocol.h
-        src/main/jni/nlogger_protocol.c
-        src/main/jni/nlogger_data_handler.h
-        src/main/jni/nlogger_data_handler.c
-        src/main/jni/nlogger_log_file_handler.h
-        src/main/jni/nlogger_log_file_handler.c
+        src/main/jni/cache/nlogger_protocol.h
+        src/main/jni/cache/nlogger_protocol.c
+        src/main/jni/compress/nlogger_data_handler.h
+        src/main/jni/compress/nlogger_data_handler.c
+        src/main/jni/logfile/nlogger_log_file_handler.h
+        src/main/jni/logfile/nlogger_log_file_handler.c
         )
 
 #find_library( # Sets the name of the path variable.

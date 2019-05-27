@@ -22,13 +22,70 @@
 #include <sys/mman.h>
 #include <zconf.h>
 #include <malloc.h>
-#include "utils/cJSON.h"
-#include "nlogger_cache.h"
-#include "utils/nlogger_android_log.h"
-#include "nlogger_error_code.h"
-#include "nlogger_constants.h"
-#include "utils/nlogger_utils.h"
+#include "../utils/cJSON.h"
+#include "nlogger_cache_handler.h"
+#include "../utils/nlogger_android_log.h"
+#include "../nlogger_error_code.h"
+#include "../nlogger_constants.h"
+#include "../utils/nlogger_utils.h"
 #include "nlogger_protocol.h"
+#include "../nlogger.h"
+#include "../utils/nlogger_file_utils.h"
+
+
+/**
+ * 创建mmap缓存文件用的路径（包含缓存文件名）
+ */
+int _create_cache_file_path(const char *cache_file_dir, char **result_path) {
+    if (is_empty_string(cache_file_dir)) {
+        return ERROR_CODE_ILLEGAL_ARGUMENT;
+    }
+    int appendSeparate = 0;
+    if (cache_file_dir[strlen(cache_file_dir)] != '/') {
+        appendSeparate = 1;
+    }
+    size_t path_string_length = strlen(cache_file_dir) +
+                                (appendSeparate ? strlen("/") : 0) +
+                                strlen(NLOGGER_CACHE_DIR) +
+                                strlen("/") +
+                                strlen(NLOGGER_CACHE_FILE_NAME) +
+                                strlen("\0");
+    *result_path = malloc(path_string_length);
+    if (*result_path == NULL) {
+        return ERROR_CODE_MALLOC_CACHE_DIR_STRING;
+    }
+    memset(*result_path, 0, path_string_length);
+    memcpy(*result_path, cache_file_dir, strlen(cache_file_dir));
+    if (appendSeparate) {
+        strcat(*result_path, "/");
+    }
+    strcat(*result_path, NLOGGER_CACHE_DIR);
+    strcat(*result_path, "/");
+    if (makedir_nlogger(*result_path) < 0) {
+        return ERROR_CODE_CREATE_LOG_CACHE_DIR_FAILED;
+    }
+    LOGD("init", "create mmap cache dir_string >>> %s", *result_path);
+    strcat(*result_path, NLOGGER_CACHE_FILE_NAME);
+    return ERROR_CODE_OK;
+}
+
+int init_cache(struct nlogger_cache_struct *cache, const char *cache_file_dir) {
+    //创建mmap缓存文件的目录
+    char *final_mmap_cache_path;
+    _create_cache_file_path(cache_file_dir, &final_mmap_cache_path);
+    LOGD("init", "finish create log cache path>>>> %s ", final_mmap_cache_path);
+    cache->p_file_path = final_mmap_cache_path;
+
+    //初始化缓存文件，首先采用mmap缓存，失败则用内存缓存
+    int create_cache_result = create_cache_nlogger(cache);
+
+    if (create_cache_result == NLOGGER_INIT_CACHE_FAILED) {
+        return ERROR_CODE_CREATE_CACHE_FAILED;
+    }
+
+    return ERROR_CODE_OK;
+}
+
 
 int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {
     int result = INIT_FAILED;
@@ -122,21 +179,32 @@ int _init_memory_cache(char **mmap_cache_buffer) {
     return result;
 }
 
-int create_cache_nlogger(char *mmap_cache_file_path, char **mmap_cache_buffer) {
+/**
+ * 创建缓存，优先尝试创建mmap缓存，无法创建则创建memory缓存
+ *
+ * @param cache
+ * @return
+ */
+int create_cache_nlogger(struct nlogger_cache_struct *cache) {
     int result;
     //首先尝试用mmap的形式作为缓存
-    if (mmap_cache_file_path == NULL || strnlen(mmap_cache_file_path, 16) == 0) {
+    if (cache->p_file_path == NULL || strnlen(cache->p_file_path, 16) == 0) {
         LOGW(TAG, "argument mmap cache file is invalid.")
         result = NLOGGER_MEMORY_CACHE_MODE;
-    } else if (_open_mmap(mmap_cache_file_path, mmap_cache_buffer) == INIT_OK) {
+    } else if (_open_mmap(cache->p_file_path, &cache->p_buffer) == INIT_OK) {
         result = NLOGGER_MMAP_CACHE_MODE;
     } else {
         result = NLOGGER_MEMORY_CACHE_MODE;
     }
     //mmap失败则使用内存来作为缓存方式
-    if (result == NLOGGER_MEMORY_CACHE_MODE && _init_memory_cache(mmap_cache_buffer) != INIT_OK) {
+    if (result == NLOGGER_MEMORY_CACHE_MODE && _init_memory_cache(&cache->p_buffer) != INIT_OK) {
         result = NLOGGER_INIT_CACHE_FAILED;
     }
+
+    if (result != NLOGGER_INIT_CACHE_FAILED) {
+        cache->cache_mode = result;
+    }
+
     return result;
 }
 
@@ -192,6 +260,101 @@ int parse_mmap_cache_content_length(char *p_content_length) {
     int content_length = *((unsigned int *) length_array);
     LOGD("parse_mmap_h", "parse content length from header, cache->length >>> %d", content_length)
     return content_length;
+}
+
+/**
+ * 完成mmap缓存文件和，日志文件的映射（写入一个缓存对应的日志文件的信息头到cache中，方便以外中断恢复缓存日志到日志文件中）
+ *
+ * @param cache
+ * @param log_file_name
+ * @return
+ */
+int map_log_file_with_cache(struct nlogger_cache_struct *cache, const char *log_file_name) {
+    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE) {
+        //直接忽略旧的日志头，覆盖写入新的日志头，指定当前mmap文件映射的log file name
+        size_t written_header_length = write_mmap_cache_header(cache->p_buffer, log_file_name);
+
+        if (written_header_length > 0) {
+            cache->p_content_length = cache->p_buffer + written_header_length;
+        } else {
+            //写入失败则切换成Memory缓存模式
+            //（不能建立关系就失去了意外中断导致日志丢失的优势，这和内存缓存没有区别）
+            if (cache->p_buffer != NULL) {
+                munmap(cache->p_buffer, NLOGGER_MMAP_CACHE_SIZE);
+            }
+            if (cache->p_file_path != NULL) {
+                free(cache->p_file_path);
+                cache->p_file_path = NULL;
+            }
+            //cache->p_file_path = NULL 会主动创建memory cache
+            if (NLOGGER_INIT_CACHE_FAILED == create_cache_nlogger(cache)) {
+                return ERROR_CODE_INIT_CACHE_FAILED;
+            }
+        }
+    }
+
+    //mmap模式会在完成映射关系（写入file name）后指定代表content长度指针的位置
+    //memory模式需要手动指定代表长度的指针，也就是内存缓存的开头地址
+    if (cache->cache_mode == NLOGGER_MEMORY_CACHE_MODE) {
+        cache->p_content_length = cache->p_buffer;
+    }
+    cache->p_next_write   = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+    cache->content_length = 0;
+    cache->section_length = 0;
+
+    return ERROR_CODE_OK;
+}
+
+char *cache_content_head(struct nlogger_cache_struct *cache) {
+    return cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+}
+
+size_t cache_content_length(struct nlogger_cache_struct *cache) {
+    return cache->content_length;
+}
+
+
+/**
+ * 检查缓存是否健康，如果mmap缓存有问题及时切换成memory缓存
+ *
+ * @param cache
+ * @return
+ */
+int check_cache_healthy(struct nlogger_cache_struct *cache) {
+    int result = ERROR_CODE_OK;
+    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE &&
+        !is_file_exist_nlogger(cache->p_file_path)) {
+        //mmap缓存文件不见了，这个时候主动切换成Memory缓存
+        if (cache->p_buffer != NULL) {
+            munmap(cache->p_buffer, NLOGGER_MMAP_CACHE_SIZE);
+        }
+        if (cache->p_file_path != NULL) {
+            free(cache->p_file_path);
+            cache->p_file_path = NULL;
+        }
+        //路径传空，强制Memory缓存
+        if (NLOGGER_INIT_CACHE_FAILED == create_cache_nlogger(cache)) {
+            return ERROR_CODE_INIT_CACHE_FAILED;
+        }
+        cache->p_content_length = cache->p_buffer;
+        cache->p_next_write     = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+        cache->content_length   = 0;
+        cache->section_length   = 0;
+        result = ERROR_CODE_CHANGE_CACHE_MODE_TO_MEMORY;
+    }
+
+    //最后检查一下缓存指针是否存在，如果不存在则直接报错返回
+    if (cache->p_buffer == NULL) {
+        result = ERROR_CODE_INIT_CACHE_FAILED;
+    }
+
+    //在检查一下关键字段是否为空
+//    if (cache->p_next_write == NULL) {
+//        result = ERROR_CODE_INIT_CACHE_FAILED;
+//    }
+
+
+    return result;
 }
 
 
@@ -251,6 +414,10 @@ size_t write_mmap_cache_header(char *cache_buffer, char *log_file_name) {
     }
 
     return write_size;
+}
+
+int current_cache_mode(struct nlogger_cache_struct *cache){
+    return cache->cache_mode;
 }
 
 /**
@@ -331,6 +498,51 @@ int parse_mmap_cache_head(char *cache_buffer, char **file_name) {
     handled_length += tail_tag_size;
 
     return handled_length;
+}
+
+
+/**
+ * 重制cache缓存状态
+ */
+int reset_nlogger_cache(struct nlogger_cache_struct *cache) {
+    cache->content_length = 0;
+    cache->p_next_write   = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
+    update_cache_content_length(cache->p_content_length, cache->content_length);
+
+    return ERROR_CODE_OK;
+}
+
+/**
+ * 解析mmap缓存的header，根据header来
+ * 初始化缓存的几个重要指针，以及返回 日志名 指针
+ *
+ * @param cache
+ * @param file_name
+ * @return
+ */
+int init_cache_from_mmap_buffer(struct nlogger_cache_struct *cache, char **log_file_name) {
+    int error_code = ERROR_CODE_CAN_NOT_PARSE_ON_MEMORY_CACHE_MODE;
+    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE) {
+        //解析日志文件名以及cache header的长度，如果结果大于0代表成功，结果数值就是header的长度
+        int parse_result = parse_mmap_cache_head(cache->p_buffer, log_file_name);
+        if (parse_result > 0) {
+            cache->p_content_length = cache->p_buffer + parse_result;
+            //解析日志cache content的长度，如果结果大于0代表成功，结果数值就是content的长度
+            parse_result = parse_mmap_cache_content_length(cache->p_content_length);
+            if (parse_result > 0) {
+                cache->content_length = (unsigned int) parse_result;
+                error_code = ERROR_CODE_OK;
+            } else {
+                LOGE("flush_nlogger", "parse_mmap_cache_content_length on error, error code  >>> %d", parse_result);
+                error_code = parse_result;
+            }
+        } else {
+            LOGE("flush_nlogger", "parse_mmap_cache_header on error, error code >>> %d", parse_result);
+            error_code = parse_result;
+        }
+    }
+
+    return error_code;
 }
 
 

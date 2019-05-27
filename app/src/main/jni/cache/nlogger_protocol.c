@@ -4,10 +4,10 @@
 
 #include <malloc.h>
 #include "nlogger_protocol.h"
-#include "utils/nlogger_utils.h"
-#include "nlogger_error_code.h"
-#include "utils/nlogger_android_log.h"
-#include "nlogger_constants.h"
+#include "../utils/nlogger_utils.h"
+#include "../nlogger_error_code.h"
+#include "../utils/nlogger_android_log.h"
+#include "../nlogger_constants.h"
 
 
 /**

@@ -4,10 +4,10 @@
 
 #include <malloc.h>
 #include "nlogger_data_handler.h"
-#include "nlogger_error_code.h"
-#include "utils/nlogger_android_log.h"
-#include "nlogger_constants.h"
-#include "encrypt/mbedtls/include/mbedtls/aes.h"
+#include "../nlogger_error_code.h"
+#include "../utils/nlogger_android_log.h"
+#include "../nlogger_constants.h"
+#include "mbedtls/aes.h"
 
 
 int init_encrypt(struct nlogger_data_handler_struct *data_handler, const char *encrypt_key, const char *encrypt_iv) {
@@ -240,4 +240,12 @@ int is_data_handler_init(struct nlogger_data_handler_struct *data_handler) {
 
 int is_data_handler_processing(struct nlogger_data_handler_struct *data_handler) {
     return data_handler->state == NLOGGER_HANDLER_STATE_INIT || data_handler->state == NLOGGER_HANDLER_STATE_HANDLING;
+}
+
+int reset_data_handler(struct nlogger_data_handler_struct *data_handler){
+    if (data_handler == NULL){
+        return ERROR_CODE_RESET_DATA_HANDLER_FAILED;
+    }
+    data_handler->remain_data_length = 0;
+    return ERROR_CODE_OK;
 }
