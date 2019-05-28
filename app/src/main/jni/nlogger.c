@@ -13,12 +13,19 @@
 #include "cache/nlogger_cache_handler.h"
 #include "utils/nlogger_json_util.h"
 #include "utils/nlogger_utils.h"
-#include "cache/nlogger_protocol.h"
+//#include "cache/nlogger_protocol.h"
 
 #include "nlogger.h"
 
 static nlogger *g_nlogger;
 
+int _write_data(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *data, size_t data_length);
+
+int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *segment, size_t segment_length);
+
+int _start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache);
+
+int _end_current_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache);
 
 /**
  * 初始化路径参数，并且创建文件
@@ -81,153 +88,14 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
 }
 
 /**
- * 同时更新content的长度和section的长度到缓存中
+ * 数据处理完成的回调，帮助更新cache结构体记录的指针
  *
- * @param cache
+ * @param handled_length
  */
-void _update_length(struct nlogger_cache_struct *cache) {
-    update_cache_section_length(cache->p_section_length, cache->section_length);
-    update_cache_content_length(cache->p_content_length, cache->content_length);
+void on_compress_finish_callback(size_t handled_length) {
+    on_cache_written(&g_nlogger->cache, handled_length);
 }
 
-/**
- * 检查是否符合从缓存写入到日志文件到要求
- */
-int _check_can_flush_after_compress(struct nlogger_cache_struct *cache) {
-    int result = 0;
-    if (cache->cache_mode == NLOGGER_MMAP_CACHE_MODE &&
-        cache->content_length >= NLOGGER_FLUSH_MMAP_CACHE_SIZE_THRESHOLD) {
-        result = 1;
-    } else if (cache->cache_mode == NLOGGER_MEMORY_CACHE_MODE &&
-               cache->content_length >= NLOGGER_FLUSH_MEMORY_CACHE_SIZE_THRESHOLD) {
-        result = 1;
-    }
-    return result;
-}
-
-int _start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
-    LOGI("real_write", "start _real_write on new section");
-    int init_result = init_zlib(data_handler);
-    if (init_result != ERROR_CODE_OK) {
-        return init_result;
-    }
-    //压缩日志段开始，写入开始标志符号，todo 改成用魔数到形式
-//    *cache->p_next_write = NLOGGER_MMAP_CACHE_CONTENT_HEAD_TAG;
-//    cache->p_next_write += 1;
-//    cache->content_length += 1;
-
-    int written_length = add_section_head_tag(cache->p_next_write);
-    cache->p_next_write += written_length;
-    cache->content_length += written_length;
-
-    //保存 p_section_length 地址，初始化section长度字段
-    cache->section_length   = 0;
-    cache->p_section_length = cache->p_next_write;
-
-    //移动写入指针，section长度字段（目前占位4byte）
-    cache->p_next_write += NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
-    cache->content_length += NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE;
-    LOGI("real_write", "finish _real_write on new section");
-
-    return ERROR_CODE_OK;
-}
-
-
-/**
- * 结束一段压缩过程，并且将剩余数据全部都写入到缓存中
- */
-int _end_current_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
-//    if (data_handler->state == NLOGGER_HANDLER_STATE_HANDLING) {
-    //结束一次压缩流程，并且更新length，结束的时候会写入一些尾部标志位
-    size_t finish_compressed_length = finish_compress_data(data_handler, cache->p_next_write);
-    LOGD("finish_section", "finish_compressed_length >>> %zd", finish_compressed_length)
-    if (finish_compressed_length < 0) {
-        return ERROR_CODE_COMPRESS_FAILED;
-    }
-
-    cache->p_next_write += finish_compressed_length;
-    cache->section_length += finish_compressed_length;
-    cache->content_length += finish_compressed_length;
-
-    int written_length = add_section_tail_tag(cache->p_next_write);
-    cache->p_next_write += written_length;
-    cache->content_length += written_length;
-
-    LOGI("finish_section", "finish_compressed_length end.")
-    return ERROR_CODE_OK;
-}
-
-/**
- * 写入数据片段到缓存中
- */
-int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *segment, size_t segment_length) {
-    LOGD("real_write", "start _real_write cache->p_next_write >>> %ld", cache->p_next_write);
-
-    //判断是否有初始化，一般情况完成一个section的压缩就要重新初始化
-    if (!is_data_handler_init(data_handler)) {
-        _start_new_section(data_handler, cache);
-        _update_length(cache);
-    }
-
-
-    //加密压缩数据，尽量不去依赖缓存相关数据结构
-    size_t compressed_length = compress_and_write_data(data_handler, cache->p_next_write, segment, segment_length);
-    if (compressed_length < 0) {
-        return ERROR_CODE_COMPRESS_FAILED;
-    }
-
-    cache->p_next_write += compressed_length;
-    cache->section_length += compressed_length;
-    cache->content_length += compressed_length;
-    _update_length(cache);
-
-    //判断是否需要flush缓存到日志文件中去
-    if (_check_can_flush_after_compress(cache)) {
-        LOGD("real_write", "flush cache log to log file.")
-        return flush_nlogger();
-    }
-
-    //判断是否需要结束一段日志数据段
-    if (compressed_length > NLOGGER_COMPRESS_SECTION_THRESHOLD || 1) {
-        int finish_result = _end_current_section(data_handler, cache);
-        if (finish_result != ERROR_CODE_OK) {
-            return finish_result;
-        }
-        _update_length(cache);
-    }
-
-    LOGD("real_write", "finish _real_write cache->p_next_write >>> %ld", cache->p_next_write);
-    return ERROR_CODE_OK;
-}
-
-/**
- * 写入数据到缓存中
- */
-int _write_data(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *data,
-                size_t data_length) {
-//    size_t handled     = 0;
-    char   *next_write = data;
-    int    segment_num = (int) (data_length / NLOGGER_WRITE_SEGMENT_LENGTH);
-    size_t remain      = data_length % NLOGGER_WRITE_SEGMENT_LENGTH;
-    int    i           = 0;
-
-    for (i = 0; i < segment_num; ++i) {
-        int result = _real_write(cache, data_handler, next_write, NLOGGER_WRITE_SEGMENT_LENGTH);
-        if (result != ERROR_CODE_OK) {
-            return result;
-        }
-        next_write += NLOGGER_WRITE_SEGMENT_LENGTH;
-    }
-
-    if (remain != 0) {
-        int result = _real_write(cache, data_handler, next_write, remain);
-        if (result != ERROR_CODE_OK) {
-            return result;
-        }
-    }
-
-    return ERROR_CODE_OK;
-}
 
 /**
  * 写入日志
@@ -275,8 +143,8 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     //step3 组装日志
     char *result_json_data;
     int  build_result;
-    build_result = malloc_and_build_log_json_data(current_cache_mode(&g_nlogger->cache), flag, log_content, local_time,
-                                                  thread_name, thread_id, is_main, &result_json_data);
+    build_result = build_log_json_data(&g_nlogger->cache, flag, log_content, local_time,
+                                       thread_name, thread_id, is_main, &result_json_data);
     if (build_result != ERROR_CODE_OK || result_json_data == NULL) {
         return build_result;
     }
@@ -291,6 +159,114 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     int result = _write_data(&g_nlogger->cache, &g_nlogger->data_handler, result_json_data, log_json_data_length);
 
     return result;
+}
+
+
+/**
+ * 写入数据到缓存中
+ */
+int _write_data(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *data,
+                size_t data_length) {
+//    size_t handled     = 0;
+    char   *next_write = data;
+    int    segment_num = (int) (data_length / NLOGGER_WRITE_SEGMENT_LENGTH);
+    size_t remain      = data_length % NLOGGER_WRITE_SEGMENT_LENGTH;
+    int    i           = 0;
+
+    for (i = 0; i < segment_num; ++i) {
+        int result = _real_write(cache, data_handler, next_write, NLOGGER_WRITE_SEGMENT_LENGTH);
+        if (result != ERROR_CODE_OK) {
+            return result;
+        }
+        next_write += NLOGGER_WRITE_SEGMENT_LENGTH;
+    }
+
+    if (remain != 0) {
+        int result = _real_write(cache, data_handler, next_write, remain);
+        if (result != ERROR_CODE_OK) {
+            return result;
+        }
+    }
+
+    return ERROR_CODE_OK;
+}
+
+
+/**
+ * 写入数据片段到缓存中
+ */
+int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_struct *data_handler, char *segment, size_t segment_length) {
+    LOGD("real_write", "start _real_write cache->p_next_write >>> %ld", obtain_cache_next_write(cache));
+
+    //判断是否有初始化，一般情况完成一个section的压缩就要重新初始化
+    if (!is_data_handler_init(data_handler)) {
+        _start_new_section(data_handler, cache);
+//        _update_length(cache);
+    }
+
+    //加密压缩数据，尽量不去依赖缓存相关数据结构
+    size_t compressed_length = compress_and_write_data(data_handler, obtain_cache_next_write(cache), segment, segment_length, &on_compress_finish_callback);
+    if (compressed_length < 0) {
+        return ERROR_CODE_COMPRESS_FAILED;
+    }
+
+    //判断是否需要flush缓存到日志文件中去
+    if (is_cache_overflow(cache)) {
+        LOGD("real_write", "flush cache log to log file.")
+        return flush_nlogger();
+    }
+
+    //判断是否需要结束一段日志数据段
+    if (compressed_length > NLOGGER_COMPRESS_SECTION_THRESHOLD || 1) {
+        int finish_result = _end_current_section(data_handler, cache);
+        if (finish_result != ERROR_CODE_OK) {
+            return finish_result;
+        }
+//        _update_length(cache);
+    }
+
+    LOGD("real_write", "finish _real_write cache->p_next_write >>> %ld", obtain_cache_next_write(cache));
+    return ERROR_CODE_OK;
+}
+
+/**
+ * 开始一段新的日志存储段（需要做一些准备工作）
+ *
+ * @param data_handler
+ * @param cache
+ * @return
+ */
+int _start_new_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
+    LOGI("real_write", "start _real_write on new section");
+    int init_result = init_zlib(data_handler);
+    if (init_result != ERROR_CODE_OK) {
+        return init_result;
+    }
+
+    write_cache_content_header_tag_and_length_block(cache);
+    LOGI("real_write", "finish _real_write on new section");
+
+    return ERROR_CODE_OK;
+}
+
+
+/**
+ * 结束一段压缩过程，并且将剩余数据全部都写入到缓存中
+ */
+int _end_current_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache) {
+//    if (data_handler->state == NLOGGER_HANDLER_STATE_HANDLING) {
+    //结束一次压缩流程，并且更新length，结束的时候会写入一些尾部标志位
+    size_t finish_compressed_length = finish_compress_data(data_handler, obtain_cache_next_write(cache), &on_compress_finish_callback);
+    LOGD("finish_section", "finish_compressed_length >>> %zd", finish_compressed_length)
+    if (finish_compressed_length < 0) {
+        return ERROR_CODE_COMPRESS_FAILED;
+    }
+
+    write_cache_content_tail_tag_block(cache);
+
+
+    LOGI("finish_section", "finish_compressed_length end.")
+    return ERROR_CODE_OK;
 }
 
 
@@ -310,7 +286,7 @@ int flush_nlogger() {
         if (finish_result != ERROR_CODE_OK) {
             return finish_result;
         }
-        _update_length(&g_nlogger->cache);
+//        _update_length(&g_nlogger->cache);
     }
 
     //step2 检查日志文件, 在没有文件名的情况下去flush的时候需要从mmap中获取文件名然后再打开
@@ -319,7 +295,7 @@ int flush_nlogger() {
     char *file_name                     = NULL;
     int  file_name_configured           = is_log_file_name_valid(&g_nlogger->log) == ERROR_CODE_OK;
     //step2.1 获取缓存对应到日志文件名
-    if (!file_name_configured && NLOGGER_MMAP_CACHE_MODE == current_cache_mode(&g_nlogger->cache)) {
+    if (!file_name_configured) {
         int init_result = init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
         if (init_result != ERROR_CODE_OK) {
             return init_result;
@@ -363,6 +339,8 @@ int flush_nlogger() {
     return ERROR_CODE_OK;
 }
 
+//////////////////////////////  DEBUG  /////////////////////////////////
+
 static char *g_null_string = "NULL";
 
 void _get_string_data(char *data, char **result) {
@@ -400,5 +378,5 @@ void print_current_nlogger(struct nlogger_struct *g_nlogger) {
     LOGW("debug", "\n");
 }
 
-
+//////////////////////////////  DEBUG  /////////////////////////////////
 

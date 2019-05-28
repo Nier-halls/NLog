@@ -37,20 +37,6 @@
 #define NLOGGER_MMAP_CACHE_HEADER_TAIL_TAG '$'
 
 #define NLOGGER_WRITE_SEGMENT_LENGTH (20 * 1024)
-//#define NLOGGER_WRITE_SEGMENT_LENGTH (20)
-
-//(int cache_type, int flag, char *log_content, long long local_time,
-//char *thread_name, long long thread_id,
-
-//#define NLOGGER_PROTOCOL_KEY_CACHE_TYPE "ct"
-//#define NLOGGER_PROTOCOL_KEY_FLAG "f"
-//#define NLOGGER_PROTOCOL_KEY_CONTENT "c"
-//#define NLOGGER_PROTOCOL_KEY_LOCAL_TIME "t"
-//#define NLOGGER_PROTOCOL_KEY_THREAD_NAME "tn"
-//#define NLOGGER_PROTOCOL_KEY_THREAD_ID "ti"
-//#define NLOGGER_PROTOCOL_KEY_MAIN_THREAD "mt"
-
-//#define NLOGGER_VERSION 1
 
 #define NLOGGER_CONTENT_LENGTH_BYTE_SIZE 3
 #define NLOGGER_CONTENT_SUB_SECTION_LENGTH_BYTE_SIZE 4

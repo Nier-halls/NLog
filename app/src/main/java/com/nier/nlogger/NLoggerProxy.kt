@@ -29,10 +29,6 @@ class NLoggerProxy {
         encrypt_iv_16: String
     ): Int
 
-    private external fun nativeOpen(fileName: String): Int
-
-    private external fun sayHello(content: String): String
-
 
     fun init(context: Context) {
 //        thread {
@@ -44,10 +40,6 @@ class NLoggerProxy {
             "ivnier1234autoiv"
         )
 //        }.start()
-    }
-
-    fun open() {
-        nativeOpen("niers_log")
     }
 
     fun write(content: String) {
@@ -66,12 +58,6 @@ class NLoggerProxy {
 
     fun flush() {
         nativeFlush()
-    }
-
-
-    fun test(string: String): String {
-        val result = sayHello(string)
-        return result
     }
 
 

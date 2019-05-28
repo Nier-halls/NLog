@@ -9,7 +9,20 @@
 #include "../nlogger_constants.h"
 #include "mbedtls/aes.h"
 
+void _real_mbedtls_encrypt(struct nlogger_data_handler_struct *data_handler, char *source, size_t length, char *destination);
 
+size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, unsigned char *data, size_t data_length);
+
+size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t source_length, int type);
+
+/**
+ * 初始化加密配置，缓存加密密钥以及偏移量
+ *
+ * @param data_handler
+ * @param encrypt_key
+ * @param encrypt_iv
+ * @return
+ */
 int init_encrypt(struct nlogger_data_handler_struct *data_handler, const char *encrypt_key, const char *encrypt_iv) {
     //配置加密相关的参数
     char *temp_encrypt_key = malloc(sizeof(char) * 16);
@@ -62,70 +75,29 @@ int init_zlib(struct nlogger_data_handler_struct *data_handler) {
     return ERROR_CODE_OK;
 }
 
-
-
-
 /**
- * 进行aes加密，目前没有实现，只是一次copy
+ * 压缩数据加密
  *
  * @param data_handler
- * @param destination
- * @param data
- * @param data_length
- * @return
+ * @param destination 写入的目的地指针
+ * @param source 数据源指针
+ * @param length 源数据长度
+ *
+ * @return 写入数据的长度
  */
-size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, unsigned char *data, size_t data_length) {
-    size_t        handled               = 0;
-    size_t        unencrypt_data_length = data_length + data_handler->remain_data_length;
-    size_t        handle_data_length    = (unencrypt_data_length / NLOGGER_AES_ENCRYPT_UNIT) * (size_t) NLOGGER_AES_ENCRYPT_UNIT;
-    size_t        remain_data_length    = unencrypt_data_length % (size_t) NLOGGER_AES_ENCRYPT_UNIT;
-//    char          *curr                 = destination;
-    unsigned char handle_data[handle_data_length];
-    unsigned char *next_copy_point      = handle_data;
-
-    if (handle_data_length) {
-        size_t copy_data_length = handle_data_length - data_handler->remain_data_length;
-        if (data_handler->remain_data_length) {
-            memcpy(next_copy_point, data_handler->p_remain_data, data_handler->remain_data_length);
-            next_copy_point += data_handler->remain_data_length;
-        }
-        memcpy(next_copy_point, data, copy_data_length);
-        LOGE("encrypt", "write data >>> %zd", handle_data_length)
-        //todo encrypt
-//        memcpy(destination, handle_data, handle_data_length);
-
-        mbedtls_aes_context context;
-        mbedtls_aes_setkey_enc(&context, (unsigned char *) data_handler->p_encrypt_key, 128);
-        mbedtls_aes_crypt_cbc(
-                &context,
-                MBEDTLS_AES_ENCRYPT,
-                handle_data_length,
-                (unsigned char *) data_handler->p_encrypt_iv_pending,
-                handle_data,
-                (unsigned char *) destination
-        ); //加密
-
-        handled += handle_data_length;
+size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t length, void (*callback)(size_t)) {
+    //todo 状态检查
+    LOGW("compress_data", "start compress_and_write_data, target length >>> %zd", length);
+    size_t handled = 0;
+    //todo 压缩数据 加密数据 不一定所有数据都会写入，会有一小部分数据缓存等待下一次写入
+    handled = _zlib_compress_with_encrypt(data_handler, destination, source, length, Z_SYNC_FLUSH);
+    LOGW("compress_data", "after compress_and_write_data, handled >>> %zd", handled);
+    data_handler->state = NLOGGER_HANDLER_STATE_HANDLING;
+    if (handled > 0) {
+        (*callback)(handled);
     }
-
-
-    if (remain_data_length) {
-        if (handle_data_length) {
-            size_t copied_data_length = handle_data_length - data_handler->remain_data_length;
-            next_copy_point = data;
-            next_copy_point += copied_data_length;
-            memcpy(data_handler->p_remain_data, next_copy_point, remain_data_length);
-        } else {
-            next_copy_point = (unsigned char *) data_handler->p_remain_data;
-            next_copy_point += data_handler->remain_data_length;
-            memcpy(next_copy_point, data, remain_data_length);
-        }
-        data_handler->remain_data_length = remain_data_length;
-    }
-
     return handled;
 }
-
 
 /**
  * gzip压缩 + aes加密
@@ -169,26 +141,74 @@ size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_hand
 
 
 /**
- * 压缩数据加密
+ * 进行aes加密，目前没有实现，只是一次copy
  *
  * @param data_handler
- * @param destination 写入的目的地指针
- * @param source 数据源指针
- * @param length 源数据长度
- *
- * @return 写入数据的长度
+ * @param destination
+ * @param data
+ * @param data_length
+ * @return
  */
-size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t length) {
-    //todo 状态检查
-    LOGW("compress_data", "start compress_and_write_data, target length >>> %zd", length);
-    size_t handled = 0;
-    //todo 压缩数据 加密数据 不一定所有数据都会写入，会有一小部分数据缓存等待下一次写入
-    handled = _zlib_compress_with_encrypt(data_handler, destination, source, length, Z_SYNC_FLUSH);
-    LOGW("compress_data", "after compress_and_write_data, handled >>> %zd", handled);
-    data_handler->state = NLOGGER_HANDLER_STATE_HANDLING;
+size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, unsigned char *data, size_t data_length) {
+    size_t        handled               = 0;
+    size_t        unencrypt_data_length = data_length + data_handler->remain_data_length;
+    size_t        handle_data_length    = (unencrypt_data_length / NLOGGER_AES_ENCRYPT_UNIT) * (size_t) NLOGGER_AES_ENCRYPT_UNIT;
+    size_t        remain_data_length    = unencrypt_data_length % (size_t) NLOGGER_AES_ENCRYPT_UNIT;
+//    char          *curr                 = destination;
+    unsigned char handle_data[handle_data_length];
+    unsigned char *next_copy_point      = handle_data;
+
+    if (handle_data_length) {
+        size_t copy_data_length = handle_data_length - data_handler->remain_data_length;
+        if (data_handler->remain_data_length) {
+            memcpy(next_copy_point, data_handler->p_remain_data, data_handler->remain_data_length);
+            next_copy_point += data_handler->remain_data_length;
+        }
+        memcpy(next_copy_point, data, copy_data_length);
+        LOGE("encrypt", "write data >>> %zd", handle_data_length)
+        _real_mbedtls_encrypt(data_handler, (char *) handle_data, handle_data_length, destination);
+
+        handled += handle_data_length;
+    }
+
+
+    if (remain_data_length) {
+        if (handle_data_length) {
+            size_t copied_data_length = handle_data_length - data_handler->remain_data_length;
+            next_copy_point = data;
+            next_copy_point += copied_data_length;
+            memcpy(data_handler->p_remain_data, next_copy_point, remain_data_length);
+        } else {
+            next_copy_point = (unsigned char *) data_handler->p_remain_data;
+            next_copy_point += data_handler->remain_data_length;
+            memcpy(next_copy_point, data, remain_data_length);
+        }
+        data_handler->remain_data_length = remain_data_length;
+    }
+
     return handled;
 }
 
+/**
+ * 调用第三方库进行加密
+ *
+ * @param data_handler
+ * @param source
+ * @param length
+ * @param destination
+ */
+void _real_mbedtls_encrypt(struct nlogger_data_handler_struct *data_handler, char *source, size_t length, char *destination) {
+    mbedtls_aes_context context;
+    mbedtls_aes_setkey_enc(&context, (unsigned char *) data_handler->p_encrypt_key, 128);
+    mbedtls_aes_crypt_cbc(
+            &context,
+            MBEDTLS_AES_ENCRYPT,
+            length,
+            (unsigned char *) data_handler->p_encrypt_iv_pending,
+            source,
+            (unsigned char *) destination
+    ); //加密
+}
 
 /**
  * 结束压缩数据
@@ -198,7 +218,7 @@ size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler,
  *
  * @return 写入数据的长度
  */
-size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, char *destination) {
+size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, char *destination, void (*callback)(size_t)) {
     LOGI("finish_compress", "start finish_compress_data.")
     size_t handled = 0;
     if (data_handler->state != NLOGGER_HANDLER_STATE_HANDLING) {
@@ -214,38 +234,36 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
         memset(remain, '\0', NLOGGER_AES_ENCRYPT_UNIT);
         memcpy(remain, data_handler->p_remain_data, data_handler->remain_data_length);
 
-        mbedtls_aes_context context;
-        mbedtls_aes_setkey_enc(&context, (unsigned char *) data_handler->p_encrypt_key, 128);
-        mbedtls_aes_crypt_cbc(
-                &context,
-                MBEDTLS_AES_ENCRYPT,
-                NLOGGER_AES_ENCRYPT_UNIT,
-                (unsigned char *) data_handler->p_encrypt_iv_pending,
-                (unsigned char *) remain,
-                (unsigned char *) destination
-        );
+        _real_mbedtls_encrypt(data_handler, (char *) remain, NLOGGER_AES_ENCRYPT_UNIT, destination);
 
 //        memcpy(destination, remain, NLOGGER_AES_ENCRYPT_UNIT);
         data_handler->remain_data_length = 0;
         handled += NLOGGER_AES_ENCRYPT_UNIT;
     }
     data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
+    if (handled > 0) {
+        (*callback)(handled);
+    }
     //todo 关于remain_data写入以及delete_end等收尾工作
     return handled;
 }
 
+/**
+ * 状态判断：当前是否已经进行初始化
+ *
+ * @param data_handler
+ * @return
+ */
 int is_data_handler_init(struct nlogger_data_handler_struct *data_handler) {
     return data_handler->state != NLOGGER_HANDLER_STATE_IDLE;
 }
 
+/**
+ * 状态判断：当前是否能进行数据压缩（加密）操作
+ *
+ * @param data_handler
+ * @return
+ */
 int is_data_handler_processing(struct nlogger_data_handler_struct *data_handler) {
     return data_handler->state == NLOGGER_HANDLER_STATE_INIT || data_handler->state == NLOGGER_HANDLER_STATE_HANDLING;
-}
-
-int reset_data_handler(struct nlogger_data_handler_struct *data_handler){
-    if (data_handler == NULL){
-        return ERROR_CODE_RESET_DATA_HANDLER_FAILED;
-    }
-    data_handler->remain_data_length = 0;
-    return ERROR_CODE_OK;
 }

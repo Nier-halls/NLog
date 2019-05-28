@@ -75,30 +75,29 @@ typedef struct nlogger_cache_struct {
 
 int init_cache(struct nlogger_cache_struct *cache, const char *cache_file_dir);
 
-int current_cache_mode(struct nlogger_cache_struct *cache);
+int write_cache_content_header_tag_and_length_block(struct nlogger_cache_struct *cache);
 
-int create_cache_nlogger(struct nlogger_cache_struct *cache);
+void on_cache_written(struct nlogger_cache_struct *cache, size_t written_length);
 
-int parse_mmap_cache_head(char *cache_buffer, char **file_name);
+int write_cache_content_tail_tag_block(struct nlogger_cache_struct *cache);
 
-int parse_mmap_cache_content_length(char *p_content_length);
+int is_cache_overflow(struct nlogger_cache_struct *cache);
+
+int check_cache_healthy(struct nlogger_cache_struct *cache);
 
 int map_log_file_with_cache(struct nlogger_cache_struct *cache, const char *log_file_name);
+
+int build_log_json_data(struct nlogger_cache_struct *cache, int flag, char *log_content, long long local_time,
+                        char *thread_name, long long thread_id, int is_main, char **result_json_data);
+
+int init_cache_from_mmap_buffer(struct nlogger_cache_struct *cache, char **log_file_name);
 
 char *cache_content_head(struct nlogger_cache_struct *cache);
 
 size_t cache_content_length(struct nlogger_cache_struct *cache);
 
-int check_cache_healthy(struct nlogger_cache_struct *cache);
-
-size_t update_cache_section_length(char *section_length, unsigned int length);
-
-size_t update_cache_content_length(char *content_length, unsigned int length);
-
-size_t write_mmap_cache_header(char *cache_buffer, char *log_file_name);
-
 int reset_nlogger_cache(struct nlogger_cache_struct *cache);
 
-int init_cache_from_mmap_buffer(struct nlogger_cache_struct *cache, char **log_file_name);
+char *obtain_cache_next_write(struct nlogger_cache_struct *cache);
 
 #endif //NLOGGER_NLOGGER_MMAP_H
