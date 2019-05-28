@@ -27,6 +27,8 @@ int _start_new_section(struct nlogger_data_handler_struct *data_handler, struct 
 
 int _end_current_section(struct nlogger_data_handler_struct *data_handler, struct nlogger_cache_struct *cache);
 
+void on_compress_finish_callback(size_t handled_length);
+
 /**
  * 初始化路径参数，并且创建文件
  *
@@ -85,15 +87,6 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     flush_nlogger();
 
     return ERROR_CODE_OK;
-}
-
-/**
- * 数据处理完成的回调，帮助更新cache结构体记录的指针
- *
- * @param handled_length
- */
-void on_compress_finish_callback(size_t handled_length) {
-    on_cache_written(&g_nlogger->cache, handled_length);
 }
 
 
@@ -227,6 +220,16 @@ int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
 
     LOGD("real_write", "finish _real_write cache->p_next_write >>> %ld", obtain_cache_next_write(cache));
     return ERROR_CODE_OK;
+}
+
+
+/**
+ * 数据处理完成的回调，帮助更新cache结构体记录的指针
+ *
+ * @param handled_length
+ */
+void on_compress_finish_callback(size_t handled_length) {
+    on_cache_written(&g_nlogger->cache, handled_length);
 }
 
 /**
