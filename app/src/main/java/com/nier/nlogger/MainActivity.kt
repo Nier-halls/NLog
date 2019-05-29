@@ -23,7 +23,9 @@ class MainActivity : AppCompatActivity() {
             NLoggerProxy.instance.flush()
         }
 
-        NLoggerProxy.instance.init(this)
+
+
+//        NLoggerProxy.instance.init(this)
 //        NLoggerProxy.instance.write("")
 //        NLoggerProxy.instance.write("")
 //        NLoggerProxy.instance.write("")
