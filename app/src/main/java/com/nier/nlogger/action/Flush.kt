@@ -9,7 +9,7 @@ import com.nier.nlogger.ILogHandler
  *
  */
 class Flush : IAction {
-    private val TAG = "Nlogger_Action_Flush"
+    private val TAG = "Nlogger_C_Flush"
 
     override fun run(logHandler: ILogHandler): Int {
         Log.d(TAG, "Invoke Action [Flush] run, threadId=${Thread.currentThread()}")

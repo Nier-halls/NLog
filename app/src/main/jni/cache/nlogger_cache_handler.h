@@ -35,14 +35,15 @@
 
 /***
  *
+ <pre>
  * ****************************************************************** *
  *                        LOG CACHE HEADER                            *
  *                                                                    *
  *  OFFSET    DATA TYPE                                               *
- *  @+0       head tag                      1 bytes                   *
- *  @+1       header content length         2 bytes                   *
- *  @+3       header content                @{header content length}  *
- *  @...-1    tail tag                      1 bytes                   *
+ *  @+0       head tag                      4 bytes                   *
+ *  @+4       header content length         2 bytes                   *
+ *  @+6       header content                @{header content length}  *
+ *  @...-4    tail tag                      4 bytes                   *
  *                                                                    *
  * ****************************************************************** *
 
@@ -51,12 +52,12 @@
  *                                                                    *
  *  OFFSET    DATA TYPE                                               *
  *  @-3       total length                  3 bytes                   *
- *  @+0       head tag                      1 bytes                   *
- *  @+1       cache content length          4 bytes                   *
- *  @+5       cache content                 @{cache content length}   *
- *  @...-1    tail tag                      1 bytes                   *
+ *  @+0       head tag                      4 bytes                   *
+ *  @+4       cache content length          4 bytes                   *
+ *  @+8       cache content                 @{cache content length}   *
+ *  @...-4    tail tag                      4 bytes                   *
  * ****************************************************************** *
- *
+ </pre>
  ***/
 typedef struct nlogger_cache_struct {
     char *p_file_path;//mmap缓存文件的路径

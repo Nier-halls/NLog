@@ -13,13 +13,14 @@ import java.lang.Exception
  * Created by fgd
  * Date 2019/5/29 20:43
  *
+ * todo 单线程是否可用
  * todo 测试一下 多线程写入是否能够收拢
  * todo 测试一下回调是否有用
  */
 class NLogger : ILogHandler {
 
     companion object {
-        private val TAG = "NLogger_client"
+        private val TAG = "NLogger_C_client"
         private var isLoadLibrarySuccess = false //可以考虑以后以java实现
 
         init {
@@ -35,28 +36,32 @@ class NLogger : ILogHandler {
         private val mInstance = NLogger()
         private val mDispatcher = ActionDispatcher(mInstance)
 
-
         fun init(config: NLoggerConfig) {
             mInstance.init(config)
 
             mDispatcher.registerDispatchHook(object : ActionDispatcher.ActionDispatchHook {
                 override fun onActionDispatch(action: IAction, logHandler: ILogHandler): IAction? {
-                    Log.d(TAG, "Call onActionDispatch >>> $action")
+                    Log.d(TAG, "Call onActionDispatch >>> {${action.hashCode()}}, thread[${Thread.currentThread().id}]")
                     return action
                 }
             })
 
-            mDispatcher.setACtionHandleResultListener(object : ActionDispatcher.ActionHandledResultListener {
+            mDispatcher.setActionHandleResultListener(object : ActionDispatcher.ActionHandledResultListener {
                 override fun onActionHandled(action: IAction, result: Int) {
-                    Log.d(TAG, "Call onActionHandled >>> $action , result=$result")
+                    Log.d(TAG, "Call onActionHandled >>>{${action.hashCode()}}, result=$result ,thread[${Thread.currentThread().id}]")
                 }
             })
         }
 
+        fun init(context: Context) {
+            this.init(NLoggerConfig.DEFAULT_CONFIG(context))
+        }
+
+
         fun write(content: String) {
             if (isLoadLibrarySuccess) {
                 val action = Write(content)
-                Log.d(TAG, "Run [write] >>> $action")
+                Log.d(TAG, "Run [write] >>> $action, thread[${Thread.currentThread().id}]")
                 mDispatcher.dispatch(action)
             }
         }
@@ -64,7 +69,7 @@ class NLogger : ILogHandler {
         fun flush() {
             if (isLoadLibrarySuccess) {
                 val action = Flush()
-                Log.d(TAG, "Run [flush] >>> $action")
+                Log.d(TAG, "Run [flush] >>> $action, thread[${Thread.currentThread().id}]")
                 mDispatcher.dispatch(action)
             }
         }
@@ -72,7 +77,7 @@ class NLogger : ILogHandler {
         fun send() {
             if (isLoadLibrarySuccess) {
                 val action = Send()
-                Log.d(TAG, "Run [send] >>> $action")
+                Log.d(TAG, "Run [send] >>> $action, thread[${Thread.currentThread().id}]")
                 mDispatcher.dispatch(action)
             }
         }

@@ -82,8 +82,6 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
         g_nlogger->state = NLOGGER_STATE_INIT;
     }
 
-    print_current_nlogger(g_nlogger);
-
     flush_nlogger();
 
     return ERROR_CODE_OK;
@@ -336,8 +334,6 @@ int flush_nlogger() {
 
     //step4 重制状态，为下次写入日志数据做准备
     reset_nlogger_cache(&g_nlogger->cache);
-
-    print_current_nlogger(g_nlogger);
 
     return ERROR_CODE_OK;
 }

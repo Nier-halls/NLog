@@ -9,7 +9,7 @@ import com.nier.nlogger.LogEntry
  * Date 2019/5/29 14:25
  */
 class Write(val log: String) : IAction {
-    private val TAG = "Nlogger_Action_Write"
+    private val TAG = "Nlogger_C_Write"
     private val mLogEntry = LogEntry(log)
 
 

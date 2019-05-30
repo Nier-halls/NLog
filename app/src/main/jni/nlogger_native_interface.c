@@ -4,7 +4,7 @@
 #include "nlogger.h"
 
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeWrite(JNIEnv *env, jobject instance,
+Java_com_nier_nlogger_NLogger_nativeWrite(JNIEnv *env, jobject instance,
                                                jstring file_name_, jint flag,
                                                jstring log_, jlong local_time,
                                                jstring thread_name_, jlong thread_id,
@@ -25,7 +25,7 @@ Java_com_nier_nlogger_NLoggerProxy_nativeWrite(JNIEnv *env, jobject instance,
 }
 
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env,
+Java_com_nier_nlogger_NLogger_nativeInit(JNIEnv *env,
                                               jobject instance,
                                               jstring cache_path_,
                                               jstring dir_path_,
@@ -47,6 +47,6 @@ Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env,
 }
 
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeFlush(JNIEnv *env, jobject instance) {
+Java_com_nier_nlogger_NLogger_nativeFlush(JNIEnv *env, jobject instance) {
     return flush_nlogger();
 }

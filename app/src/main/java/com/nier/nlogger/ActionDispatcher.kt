@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Message
+import android.util.Log
 import com.nier.nlogger.action.IAction
 
 /**
@@ -11,6 +12,8 @@ import com.nier.nlogger.action.IAction
  * Date 2019/5/29 14:32
  */
 class ActionDispatcher(val logActionHandler: ILogHandler) : HandlerThread("ActionDispatcher") {
+
+    private val TAG = "NLogger_C_dispatcher"
 
     interface ActionDispatchHook {
         fun onActionDispatch(action: IAction, logHandler: ILogHandler): IAction?
@@ -28,23 +31,29 @@ class ActionDispatcher(val logActionHandler: ILogHandler) : HandlerThread("Actio
 
     init {
         start()
-        mDispatchHandler = Handler(looper)
+        mDispatchHandler = initHandler()
     }
 
+    /**
+     * 注册分发前的钩子，方便上层
+     */
     fun registerDispatchHook(hook: ActionDispatchHook?) {
         synchronized(this) {
             mActionDispatchHook = hook
         }
     }
 
-    fun setACtionHandleResultListener(listener: ActionHandledResultListener) {
+    fun setActionHandleResultListener(listener: ActionHandledResultListener) {
         synchronized(this) {
             mActionHandledResultListener = listener
         }
     }
 
+    /**
+     * 初始化handler
+     */
     @SuppressLint("HandlerLeak")
-    fun initHandler(): Handler = object : Handler() {
+    fun initHandler(): Handler = object : Handler(looper) {
         override fun dispatchMessage(msg: Message) {
             super.dispatchMessage(msg)
             (msg.obj as? IAction)
@@ -64,12 +73,15 @@ class ActionDispatcher(val logActionHandler: ILogHandler) : HandlerThread("Actio
                     synchronized(this) {
                         mActionHandledResultListener?.onActionHandled(noNullAction, result)
                     }
-                }
+                } ?: Log.e(TAG, "dispatchMessage NULL action ! message obj = {${msg.obj}}, thread[${Thread.currentThread().id}]")
         }
     }
 
-
+    /**
+     * 调用handler发送消息
+     */
     fun dispatch(action: IAction) {
+        Log.d(TAG, "start dispatch action => {${action.hashCode()}}, thread[${Thread.currentThread().id}]")
         mDispatchHandler.obtainMessage()
             .apply {
                 obj = action

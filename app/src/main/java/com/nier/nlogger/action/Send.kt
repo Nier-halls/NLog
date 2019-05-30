@@ -9,7 +9,7 @@ import com.nier.nlogger.ILogHandler
  */
 
 class Send : IAction {
-    private val TAG = "Nlogger_Action_Send"
+    private val TAG = "Nlogger_C_Send"
 
     override fun run(logHandler: ILogHandler): Int {
         Log.d(TAG, "Invoke Action [Send] run, threadId=${Thread.currentThread()}")

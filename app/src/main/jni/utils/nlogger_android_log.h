@@ -26,15 +26,15 @@
 #define LOGV(TAG, format, ...) __android_log_print(ANDROID_LOG_VERBOSE, "NLogger_"TAG,\
         "[%s:%d] " format, __FILENAME__, __LINE__, ##__VA_ARGS__);
 
-#define LOGD(TAG, format, ...) __android_log_print(ANDROID_LOG_DEBUG, "NLogger_"TAG,\
+#define LOGD(TAG, format, ...) __android_log_print(ANDROID_LOG_DEBUG, "NLogger_N_"TAG,\
         "[%s:%d] " format, __FILENAME__, __LINE__, ##__VA_ARGS__);
 
-#define LOGI(TAG, format, ...) __android_log_print(ANDROID_LOG_INFO, "NLogger_"TAG,\
+#define LOGI(TAG, format, ...) __android_log_print(ANDROID_LOG_INFO, "NLogger_N_"TAG,\
         "[%s:%d] " format, __FILENAME__, __LINE__, ##__VA_ARGS__);
 
-#define LOGW(TAG, format, ...) __android_log_print(ANDROID_LOG_WARN, "NLogger_"TAG,\
+#define LOGW(TAG, format, ...) __android_log_print(ANDROID_LOG_WARN, "NLogger_N_"TAG,\
         "[%s:%d] " format, __FILENAME__, __LINE__, ##__VA_ARGS__);
 
-#define LOGE(TAG, format, ...) __android_log_print(ANDROID_LOG_ERROR, "NLogger_"TAG,\
+#define LOGE(TAG, format, ...) __android_log_print(ANDROID_LOG_ERROR, "NLogger_N_"TAG,\
         "[%s:%d] " format, __FILENAME__, __LINE__, ##__VA_ARGS__);
 
