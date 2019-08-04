@@ -51,7 +51,7 @@ int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name
 
     LOGD("check", "file_name_size >>> %zd , file_dir_size >>> %zd , final_file_name >>> %zd.", file_name_size,
          file_dir_size, file_name_size + end_tag_size);
-
+    //设置日志文件的文件名
     log->p_name = malloc(file_name_size + end_tag_size);
     if (log->p_name != NULL) {
         memset(log->p_name, 0, file_name_size + end_tag_size);
@@ -62,7 +62,7 @@ int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name
     } else {
         return ERROR_CODE_MALLOC_LOG_FILE_NAME_STRING;
     }
-
+    //设置日志文件的完整路径
     log->p_path = malloc(file_dir_size + file_name_size + end_tag_size);
     if (log->p_path != NULL) {
         memset(log->p_path, 0, file_dir_size + file_name_size + end_tag_size);
@@ -102,7 +102,9 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
 
     //检查之前保存的日志文件名
     if (is_empty_string(log->p_name)) {
-        /*第一次创建，之前没有使用过，这个时候应该在init的时候flush过一次，因此不再需要flush*/
+        /*
+         * 第一次创建，之前没有使用过，
+         */
         int result_code = _set_log_file_name(log, log_file_name);
         //检查创建是否成功，如果path 或者 name创建失败则直接返回；
         if (result_code != ERROR_CODE_OK) {
@@ -111,11 +113,10 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
         }
         LOGD("check", "first config log file success log file path >>> %s.", log->p_path);
     } else if (strcmp(log->p_name, log_file_name) != 0) {
-        /*非第一次创建，之前已经有一个已经打开的日志文件，并且日志文件是打开状态*/
+        /* 非第一次创建，之前已经有一个已经打开的日志文件，并且日志文件是打开状态 */
         if (log->state == NLOGGER_LOG_STATE_OPEN &&
             log->p_file != NULL) {
-            //如果当前是打开状态，则尝试关闭，这里是否需要flush
-            //todo try flush cache log
+            // todo try flush cache log 如果当前是打开状态，则尝试关闭，这里是否需要flush，切换日志文件时是否有缓存日志在？
             //释放资源
             fclose(log->p_file);
             free(log->p_name);
@@ -128,7 +129,7 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
             return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
         }
         int result_code = _set_log_file_name(log, log_file_name);
-        //检查创建是否成功，如果path 或者 name创建失败则直接返回；
+        //检查创建是否成功，如果path字符 或者 name字符创建失败则直接返回；
         if (result_code != ERROR_CODE_OK) {
             LOGW("check", "malloc file string on error >>> %d .", result_code);
             return result_code;
@@ -145,6 +146,7 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
             LOGD("check", "same of last once log file config, success %s .", log->p_path);
             return ERROR_CODE_OK;
         } else {
+            // 异常情况，重新进行初始化
             int temp_error_code = 0;
             if (log->p_name != NULL) {
                 temp_error_code |= 0x0001;
@@ -168,7 +170,7 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
         }
     }
 
-    //如果是关闭状态，则检查是否需要创建目录，如果是打开状态则肯定已经做了日志文件长度这些状态的记录
+    //如果是关闭状态，则检查是否需要创建日志文件的目录并且记录日志文件长度这些状态
     if (log->state == NLOGGER_LOG_STATE_CLOSE) {
         int result = open_log_file(log);
         if (result == ERROR_CODE_OK) {
