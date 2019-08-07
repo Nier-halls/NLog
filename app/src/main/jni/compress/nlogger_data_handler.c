@@ -132,7 +132,10 @@ size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_hand
         }
         have = NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE - stream->avail_out;
         handled += _aes_encrypt(data_handler, destination, out, have);
+        //直接写入不进行加密
 //        memcpy(destination, out, have);
+        //更新下次写入的指针
+        // todo 换一个变量名字
         destination += have;
 //        handled += have;
     } while (0 == stream->avail_out);

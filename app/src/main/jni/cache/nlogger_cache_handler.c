@@ -339,6 +339,7 @@ int check_cache_healthy(struct nlogger_cache_struct *cache) {
             return ERROR_CODE_INIT_CACHE_FAILED;
         }
         cache->p_content_length = cache->p_buffer;
+        //其中有3byte是用来保存缓存日志长度的，预先空出来
         cache->p_next_write     = cache->p_content_length + NLOGGER_CONTENT_LENGTH_BYTE_SIZE;
         cache->content_length   = 0;
         cache->section_length   = 0;

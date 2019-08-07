@@ -81,6 +81,7 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
         g_nlogger->state = NLOGGER_STATE_INIT;
     }
 
+    //尝试进行一次flush，将上次应用关闭前未flush的cache写入到日志文件中
     flush_nlogger();
 
     return ERROR_CODE_OK;
@@ -100,6 +101,7 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     int check_cache_result = check_cache_healthy(&g_nlogger->cache);
 
     if (check_cache_result <= 0) {
+        //奇葩情况，一般不会走到这里，发现来再排查
         LOGE("write_nlogger", "###################  UNKNOW ERROR  ##################")
         LOGE("write_nlogger", "_check_cache_healthy on error >>> %d", check_cache_result)
         print_current_nlogger(g_nlogger);
@@ -145,7 +147,7 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
 
     LOGI("write", "raw log data size >>> %zd, log data >>> %s ", log_json_data_length, result_json_data)
 
-    //step4 分段压缩写入
+    //step4 分段压缩加密写入
     int result = _write_data(&g_nlogger->cache, &g_nlogger->data_handler, result_json_data, log_json_data_length);
 
     return result;
