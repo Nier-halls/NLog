@@ -64,7 +64,6 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     //默认先把状态设置成error，稍后初始化成功以后再把状态设置到init
     g_nlogger->state = NLOGGER_STATE_ERROR;
 
-
     //创建日志文件的存放目录
     set_log_file_save_dir(&g_nlogger->log, log_file_dir);
 
@@ -265,7 +264,6 @@ int _end_current_section(struct nlogger_data_handler_struct *data_handler, struc
 
     write_cache_content_tail_tag_block(cache);
 
-
     LOGI("finish_section", "finish_compressed_length end.")
     return ERROR_CODE_OK;
 }
@@ -295,20 +293,15 @@ int flush_nlogger() {
     int  malloc_file_name_by_parse_mmap = 0; //标记是否有为 file 申请过内存
     char *file_name                     = NULL;
     int  file_name_configured           = is_log_file_name_valid(&g_nlogger->log) == ERROR_CODE_OK;
-    //step2.1 获取缓存对应到日志文件名
+    //step2.1 获取缓存对应的日志文件名
     if (!file_name_configured) {
         int init_result = init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
         if (init_result != ERROR_CODE_OK) {
             return init_result;
         }
         malloc_file_name_by_parse_mmap = 1;
-    } else if (file_name_configured) {
-        file_name = current_log_file_name(&g_nlogger->log);
     } else {
-        //到目前为止没有能获取到文件名的方法
-        //没有文件名的同时，也不是mmap缓存，通常是init过后采用内存缓存策略的同时去flush了
-        //因此没有本地缓存，flush方法也没有意义
-        return ERROR_CODE_UNEXPECT_STATE_WHEN_ON_FLUSH;
+        file_name = current_log_file_name(&g_nlogger->log);
     }
 
     //step2.2 检查文件名对应到日志文件是否存在,不存在则创建并且打开
@@ -326,10 +319,8 @@ int flush_nlogger() {
     }
 
     //step3 将缓存到日志数据写入到日志文件中
-    //todo 返回地址  返回长度
     char   *cache_content = cache_content_head(&g_nlogger->cache);
     size_t content_length = cache_content_length(&g_nlogger->cache);
-
     flush_cache_to_log_file(&g_nlogger->log, cache_content, content_length);
 
     //step4 重制状态，为下次写入日志数据做准备

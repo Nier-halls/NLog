@@ -52,7 +52,13 @@ int _parse_mmap_cache_head(char *cache_buffer, char **file_name);
 
 int _parse_mmap_cache_content_length(char *p_content_length);
 
-
+/**
+ * 创建缓存文件所在的目录，打开mmap或者memeory cache
+ *
+ * @param cache
+ * @param cache_file_dir
+ * @return
+ */
 int init_cache(struct nlogger_cache_struct *cache, const char *cache_file_dir) {
     //创建mmap缓存文件的目录
     char *final_mmap_cache_path;
@@ -98,7 +104,7 @@ int _create_cache_file_path(const char *cache_file_dir, char **result_path) {
     }
     strcat(*result_path, NLOGGER_CACHE_DIR);
     strcat(*result_path, "/");
-    if (makedir_nlogger(*result_path) < 0) {
+    if (make_dir_nlogger(*result_path) < 0) {
         return ERROR_CODE_CREATE_LOG_CACHE_DIR_FAILED;
     }
     LOGD("init", "create mmap cache dir_string >>> %s", *result_path);
@@ -144,7 +150,7 @@ int _create_cache_nlogger(struct nlogger_cache_struct *cache) {
  */
 int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {
     int result = INIT_FAILED;
-    //step1 打开文件获取一个文件描述符fd
+    //step1 打开文件获取一个文件描述符fd，之后openMMap时会用到
     int fd     = open(mmap_cache_file_path,
                       O_RDWR | O_CREAT | O_CLOEXEC, //以读写的模式或者创建的模式打开，文件不存在则创建，存在则读写
                       S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP); //赋予用户及用户组读写的权限
@@ -152,6 +158,7 @@ int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {
     if (fd != -1) {
         //step2 创建一个文件流，检查文件的大小，保证把150kb的数据填充满
         int  is_file_ok = 0;
+        //file用于数据填充检查
         FILE *file      = fopen(mmap_cache_file_path, "rb+");
         if (file != NULL) {
             fseek(file, 0, SEEK_END);//将文件指针移动到文件的末尾
@@ -180,7 +187,7 @@ int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {
         } else {
             LOGW(TAG, "mmap cache file fopen failed");
         }
-
+        //mmap映射的内存地址
         char *temp_mmap_buffer;
         //step3 建立mmap文件内存映射（在映射前要保证文件的内容被填满吗？）
         if (is_file_ok) {
@@ -217,7 +224,7 @@ int _open_mmap(char *mmap_cache_file_path, char **mmap_cache_buffer) {
             }
         }
     } else {
-        LOGW(TAG, "open file failed.");
+        LOGW(TAG, "open file(%s) failed.", mmap_cache_file_path);
     }
     return result;
 }

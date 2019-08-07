@@ -68,7 +68,7 @@ int init_zlib(struct nlogger_data_handler_struct *data_handler) {
     }
 
     data_handler->remain_data_length = 0;
-    //初始化填充iv
+    //初始化填充iv，一段数据可以分多次压缩但是只能填充一次偏移量
     memcpy(data_handler->p_encrypt_iv_pending, data_handler->p_encrypt_iv_source, 16);
 
     data_handler->state = NLOGGER_HANDLER_STATE_INIT;
@@ -124,6 +124,7 @@ size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_hand
         stream->next_out  = out;
         int def_res = deflate(stream, type);
         if (Z_STREAM_ERROR == def_res) {
+            LOGE("zlib","compress log data on error.");
             //这里如果出现错误会导致日志错位，日志截断，怎么主动发现这个错误的日志
             deflateEnd(stream);
             data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
@@ -228,12 +229,14 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
     handled = _zlib_compress_with_encrypt(data_handler, destination, NULL, 0, Z_FINISH);
     deflateEnd(data_handler->p_stream);
     destination += handled;
+
+    //如果还有未满16位的未加密数据，拿出先加密
     if (data_handler->remain_data_length > 0) {
         LOGD("finish_compress", "push remain data to cache remain_length >>> %zd", data_handler->remain_data_length)
         char remain[NLOGGER_AES_ENCRYPT_UNIT];
         memset(remain, '\0', NLOGGER_AES_ENCRYPT_UNIT);
         memcpy(remain, data_handler->p_remain_data, data_handler->remain_data_length);
-
+        //加密并且把数据输出到destination目标地址中
         _real_mbedtls_encrypt(data_handler, (char *) remain, NLOGGER_AES_ENCRYPT_UNIT, destination);
 
 //        memcpy(destination, remain, NLOGGER_AES_ENCRYPT_UNIT);

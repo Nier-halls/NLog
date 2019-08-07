@@ -23,7 +23,7 @@ int is_file_exist_nlogger(const char *path) {
 }
 
 //根据路径创建目录
-int makedir_nlogger(const char *path) {
+int make_dir_nlogger(const char *path) {
     size_t beginCmpPath = 0;
     size_t endCmpPath = 0;
     size_t pathLen = strlen(path);

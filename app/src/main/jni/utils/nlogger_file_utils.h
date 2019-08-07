@@ -8,4 +8,4 @@
 #endif //NLOGGER_FILE_UTILS_H
 
 int is_file_exist_nlogger(const char *path);
-int makedir_nlogger(const char *path);
+int make_dir_nlogger(const char *path);

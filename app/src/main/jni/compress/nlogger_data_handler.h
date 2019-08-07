@@ -39,8 +39,8 @@
 typedef struct nlogger_data_handler_struct {
     z_stream *p_stream;
     char     *p_encrypt_key;
-    char     *p_encrypt_iv_source;
-    char     *p_encrypt_iv_pending;
+    char     *p_encrypt_iv_source;// 缓存的源加密偏移量数据
+    char     *p_encrypt_iv_pending;// 用于填充拷贝用的偏移量，每次一段完整加密数据都需要填充一次
     char     p_remain_data[16];
     size_t   remain_data_length;
     int      state;

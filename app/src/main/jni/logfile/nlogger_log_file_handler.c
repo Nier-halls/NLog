@@ -17,7 +17,7 @@
  */
 int open_log_file(struct nlogger_log_struct *log) {
     if (!is_file_exist_nlogger(log->p_dir)) {
-        makedir_nlogger(log->p_dir);
+        make_dir_nlogger(log->p_dir);
     }
     FILE *log_file = fopen(log->p_path, "ab+");
     if (log_file != NULL) {
@@ -202,6 +202,7 @@ int _create_log_file_dir(const char *log_file_dir, char **result_dir) {
     if (is_empty_string(log_file_dir)) {
         return ERROR_CODE_ILLEGAL_ARGUMENT;
     }
+    //判断末尾有没有反斜杠
     int appendSeparate = 0;
     if (log_file_dir[strlen(log_file_dir)] != '/') {
         appendSeparate = 1;
@@ -220,7 +221,7 @@ int _create_log_file_dir(const char *log_file_dir, char **result_dir) {
         strcat(*result_dir, "/");
     }
     LOGD("init", "create log file dir >>> %s ", *result_dir);
-    return makedir_nlogger(*result_dir);
+    return make_dir_nlogger(*result_dir);
 }
 
 /**
@@ -232,6 +233,7 @@ int _create_log_file_dir(const char *log_file_dir, char **result_dir) {
  */
 int set_log_file_save_dir(struct nlogger_log_struct *log, char *dir) {
     char *final_log_file_dir;
+    //malloc是否应该放在外层
     int  result = _create_log_file_dir(dir, &final_log_file_dir);
     if (result != ERROR_CODE_OK) {
         return result;
