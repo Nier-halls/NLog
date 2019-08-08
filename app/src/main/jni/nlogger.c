@@ -39,7 +39,7 @@ void on_compress_finish_callback(size_t handled_length);
  *
  * @return error_code
  */
-int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const char *encrypt_key,
+int init_nlogger(const char *log_file_dir, const char *cache_file_dir,const long long max_log_file_size, const char *encrypt_key,
                  const char *encrypt_iv) {
     if (is_empty_string(log_file_dir) ||
         is_empty_string(cache_file_dir) ||
@@ -65,7 +65,7 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const cha
     g_nlogger->state = NLOGGER_STATE_ERROR;
 
     //创建日志文件的存放目录
-    set_log_file_save_dir(&g_nlogger->log, log_file_dir);
+    init_log_file_config(&g_nlogger->log, log_file_dir, max_log_file_size);
 
     //配置加密相关的参数
     init_encrypt(&g_nlogger->data_handler, encrypt_key, encrypt_iv);
@@ -116,21 +116,27 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     }
 
     //step2 检查日志文件
+    //step2.1 检查日志文件是否打开，已经打开的日志文件是否和当前要写入的是同一个
     int check_log_result = check_log_file_healthy(&g_nlogger->log, log_file_name);
 
-    if (check_log_result <= 0) {
+    if (check_log_result < 0) {
         LOGE("write_nlogger", "_check_log_file_healthy on error >>> %d", check_log_result)
         return check_log_result;
     }
 
-    //step2.1 第一次创建或者打开日志文件，需要重新指定当前mmap缓存指向的日志文件
-    //方便下次启动将缓存flush到指定的日志文件中
+    //第一次创建或者打开日志文件，需要重新映射当前mmap缓存指向的日志文件 方便下次启动将缓存flush到指定的日志文件中
+    // todo [BUG] 2019年8月7日 这个时候万一remainData还有数据会发生数据错位
+    // todo [BUG] 2019年8月7日 在logFile切换的情况下应该调用一次flush
     if (check_log_result == ERROR_CODE_NEW_LOG_FILE_OPENED) {
         int init_cache_result = map_log_file_with_cache(&g_nlogger->cache, log_file_name);
         if (init_cache_result != ERROR_CODE_OK) {
             return init_cache_result;
         }
     }
+
+
+    //step2.2 检查日志文件的大小是否超过客户端设置的
+
 
     //step3 组装日志
     char *result_json_data;
@@ -209,7 +215,7 @@ int _real_write(struct nlogger_cache_struct *cache, struct nlogger_data_handler_
     }
 
     //判断是否需要结束一段日志数据段
-    if (compressed_length > NLOGGER_COMPRESS_SECTION_THRESHOLD || 1) {
+    if (compressed_length > NLOGGER_COMPRESS_SECTION_THRESHOLD) {
         int finish_result = _end_current_section(data_handler, cache);
         if (finish_result != ERROR_CODE_OK) {
             return finish_result;
@@ -359,7 +365,7 @@ void print_current_nlogger(struct nlogger_struct *g_nlogger) {
     LOGW("debug", "cache.p_buffer = %s", result);
     LOGW("debug", "================================================");
     LOGW("debug", "log.state = %d", g_nlogger->log.state);
-    LOGW("debug", "log.file_length = %ld", g_nlogger->log.file_length);
+    LOGW("debug", "log.current_file_size = %ld", g_nlogger->log.current_file_size);
     _get_string_data(g_nlogger->log.p_path, &result);
     LOGW("debug", "log.p_path = %s", result);
     _get_string_data(g_nlogger->log.p_name, &result);

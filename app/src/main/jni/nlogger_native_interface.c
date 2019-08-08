@@ -2,6 +2,7 @@
 #include "nlogger_native_interface.h"
 #include "utils/nlogger_android_log.h"
 #include "nlogger.h"
+#include "../../../../../../../Android/SDK/ndk-bundle/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include/jni.h"
 
 JNIEXPORT jint JNICALL
 Java_com_nier_nlogger_NLogger_nativeWrite(JNIEnv *env, jobject instance,
@@ -29,7 +30,7 @@ Java_com_nier_nlogger_NLogger_nativeInit(JNIEnv *env,
                                               jobject instance,
                                               jstring cache_path_,
                                               jstring dir_path_,
-                                              jint max_file,
+                                              jlong max_file_size,
                                               jstring encrypt_key16_,
                                               jstring encrypt_iv16_) {
     const char *dir_path      = (*env)->GetStringUTFChars(env, dir_path_, 0);
@@ -37,7 +38,7 @@ Java_com_nier_nlogger_NLogger_nativeInit(JNIEnv *env,
     const char *encrypt_key16 = (*env)->GetStringUTFChars(env, encrypt_key16_, 0);
     const char *encrypt_iv16  = (*env)->GetStringUTFChars(env, encrypt_iv16_, 0);
 
-    jint code = (jint) init_nlogger(dir_path, cache_path, encrypt_key16, encrypt_iv16);
+    jint code = (jint) init_nlogger(dir_path, cache_path, max_file_size, encrypt_key16, encrypt_iv16);
 
     (*env)->ReleaseStringUTFChars(env, dir_path_, dir_path);
     (*env)->ReleaseStringUTFChars(env, cache_path_, cache_path);

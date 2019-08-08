@@ -23,7 +23,7 @@ int open_log_file(struct nlogger_log_struct *log) {
     if (log_file != NULL) {
         log->p_file = log_file;
         fseek(log_file, 0, SEEK_END);
-        log->file_length = ftell(log_file);
+        log->current_file_size = ftell(log_file);
         LOGD("check", "open log file %s  success.", log->p_path);
         log->state = NLOGGER_LOG_STATE_OPEN;
     } else {
@@ -62,7 +62,7 @@ int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name
     } else {
         return ERROR_CODE_MALLOC_LOG_FILE_NAME_STRING;
     }
-    //设置日志文件的完整路径
+    //设置日志文件的完整路径(包括文件名)
     log->p_path = malloc(file_dir_size + file_name_size + end_tag_size);
     if (log->p_path != NULL) {
         memset(log->p_path, 0, file_dir_size + file_name_size + end_tag_size);
@@ -87,6 +87,8 @@ int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name
  *
  * 如果参数文件名对应的Log File没有打开，则直接open file
  * 如果参数文件名和当前文件名不一致则需要关闭原来的文件，从新open file创建新的文件流
+ *
+ * 最后会统一再检查一次日志文件是否已经超过大小
  *
  * @return 小于0表示存在异常，1 代表文件存在，并且是打开状态，2 代表文件不存在但是重新创建了一个并且打开了文件流
  */
@@ -117,6 +119,8 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
         if (log->state == NLOGGER_LOG_STATE_OPEN &&
             log->p_file != NULL) {
             // todo try flush cache log 如果当前是打开状态，则尝试关闭，这里是否需要flush，切换日志文件时是否有缓存日志在？
+
+
             //释放资源
             fclose(log->p_file);
             free(log->p_name);
@@ -143,7 +147,15 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
             log->state == NLOGGER_LOG_STATE_OPEN) {
             //说明当前已经打开的日志文件和之前的是一致的
             //并且日志文件已经是打开状态，这个时候什么事都不用做
+
+            //检查是否超过日志最大大小
+            if (log->current_file_size >= log->max_file_size) {
+                LOGE("check", "log file size large than max size.");
+                return ERROR_CODE_LOG_FILE_ON_MAX_SIZE;
+
+            }
             LOGD("check", "same of last once log file config, success %s .", log->p_path);
+
             return ERROR_CODE_OK;
         } else {
             // 异常情况，重新进行初始化
@@ -174,6 +186,11 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
     if (log->state == NLOGGER_LOG_STATE_CLOSE) {
         int result = open_log_file(log);
         if (result == ERROR_CODE_OK) {
+            //检查是否超过日志最大大小
+            if (log->current_file_size >= log->max_file_size) {
+                LOGE("check", "log file size large than max size.");
+                return ERROR_CODE_LOG_FILE_ON_MAX_SIZE;
+            }
             //表示第一次打开日志文件
             return ERROR_CODE_NEW_LOG_FILE_OPENED;
         }
@@ -233,10 +250,15 @@ int _create_log_file_dir(const char *log_file_dir, char **result_dir) {
  * @param dir
  * @return
  */
-int set_log_file_save_dir(struct nlogger_log_struct *log, char *dir) {
+int init_log_file_config(struct nlogger_log_struct *log, const char *dir, const long long max_file_size) {
     char *final_log_file_dir;
+    if (max_file_size <= 0) {
+        return ERROR_CODE_ILLEGAL_ARGUMENT;
+        LOGE("init", "invalid max log file size >>> %llu ", max_file_size)
+    }
+    log->max_file_size = max_file_size;
     //malloc是否应该放在外层
-    int  result = _create_log_file_dir(dir, &final_log_file_dir);
+    int result = _create_log_file_dir(dir, &final_log_file_dir);
     if (result != ERROR_CODE_OK) {
         return result;
     }
@@ -268,7 +290,7 @@ int flush_cache_to_log_file(struct nlogger_log_struct *log, char *cache, size_t 
     fwrite(cache, sizeof(char), cache_length, log->p_file);
     fflush(log->p_file);
 //    fclose(log->p_file);
-    log->file_length += cache_length;
+    log->current_file_size += cache_length;
 
     return result;
 }

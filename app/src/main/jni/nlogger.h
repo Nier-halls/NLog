@@ -38,7 +38,7 @@ typedef struct nlogger_struct {
     struct nlogger_data_handler_struct data_handler;
 } nlogger;
 
-int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const char *encrypt_key, const char *encrypt_iv);
+int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const long long max_file_size, const char *encrypt_key, const char *encrypt_iv);
 
 int write_nlogger(const char *log_file_name, int flag, char *log_content, long long local_time, char *thread_name, long long thread_id, int is_main);
 
