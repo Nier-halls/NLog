@@ -14,7 +14,7 @@ NLogger日志库主要分为三个主要模块
 * flush：负责将缓存中到日志读取并且写入到目标日志文件中；当写入日志符合一定条件或者客户端主动发起请求都将会触发flush操作
 
 #### 架构模块及API交互流程图
-![nlogger](./doc/pic/nlogger_pic1.png)
+![nlogger](./doc/readme/pic/nlogger_pic1.png)
 
 
 ## Nlogger代码结构
@@ -27,7 +27,7 @@ Nlogger中负责主要操作流程管理的文件是`nlogger.c`，对应的用�
 
 而上述的三个结构体又配合着各自的三个c文件提供的方法完成Nlogger库所需要的一系列操作，具体结构如下：
 
-![nlogger](./doc/pic/nlogger_pic2.png)
+![nlogger](./doc/readme/pic/nlogger_pic2.png)
 
 整个日志库逻辑如上图，`nlogger.c`负责接收所需要执行的操作（如：init、wirte、flush），然后将需要执行的操作细分成小操作分别调用上述三个c文件`nlogger_cache_handler.c` `nlogger_log_file_handler.c` `nlogger_data_handler.c`的子操作配合完成任务。
 
