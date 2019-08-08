@@ -35,6 +35,28 @@ int open_log_file(struct nlogger_log_struct *log) {
 }
 
 /**
+ * 释放日志文件资源
+ *
+ * @param log
+ * @return
+ */
+int release_log_file(struct nlogger_log_struct *log) {
+    //释放资源
+    if (log->state == NLOGGER_LOG_STATE_OPEN) {
+        if (log->p_file != NULL) {
+            fclose(log->p_file);
+            log->p_file = NULL;
+        }
+        free(log->p_name);
+        log->p_name = NULL;
+        free(log->p_path);
+        log->p_path = NULL;
+        log->state  = NLOGGER_LOG_STATE_CLOSE;
+    }
+    return ERROR_CODE_OK;
+}
+
+/**
  * 为文件名malloc内存保存并且更新日志文件的path
  *
  * @param log
@@ -42,6 +64,10 @@ int open_log_file(struct nlogger_log_struct *log) {
  * @return
  */
 int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name) {
+    if (log->p_dir == NULL) {
+        return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
+    }
+
     size_t file_name_size = strlen(log_file_name);
     size_t file_dir_size  = strlen(log->p_dir);
     size_t end_tag_size   = 1;
@@ -73,10 +99,6 @@ int _set_log_file_name(struct nlogger_log_struct *log, const char *log_file_name
     }
     LOGD("check", "_config_log_file_name finish. log file name >>> %s, log file path >>> %s.", log->p_name,
          log->p_path);
-
-    if (log->p_dir == NULL) {
-        return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
-    }
 
     return ERROR_CODE_OK;
 }
@@ -116,29 +138,33 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
         LOGD("check", "first config log file success log file path >>> %s.", log->p_path);
     } else if (strcmp(log->p_name, log_file_name) != 0) {
         /* 非第一次创建，之前已经有一个已经打开的日志文件，并且日志文件是打开状态 */
-        if (log->state == NLOGGER_LOG_STATE_OPEN &&
-            log->p_file != NULL) {
-            // todo try flush cache log 如果当前是打开状态，则尝试关闭，这里是否需要flush，切换日志文件时是否有缓存日志在？
-
-
-            //释放资源
-            fclose(log->p_file);
-            free(log->p_name);
-            free(log->p_path);
-            log->state = NLOGGER_LOG_STATE_CLOSE;
-        }
-        //如果日志文件的目录都有问题说明需要重新初始化
-        if (log->p_dir == NULL) {
-            LOGW("check", "log file dir is empty on check.");
-            return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
-        }
-        int result_code = _set_log_file_name(log, log_file_name);
-        //检查创建是否成功，如果path字符 或者 name字符创建失败则直接返回；
-        if (result_code != ERROR_CODE_OK) {
-            LOGW("check", "malloc file string on error >>> %d .", result_code);
-            return result_code;
-        }
-        LOGD("check", "close last once and new create log file, config success %s .", log->p_path);
+        //把这块逻辑放到外部去实现
+//        if (log->state == NLOGGER_LOG_STATE_OPEN && log->p_file != NULL) {
+//            // todo try flush cache log 如果当前是打开状态，则尝试关闭，这里是否需要flush，切换日志文件时是否有缓存日志在？
+//            LOGW("check", "do flush on new log file open.")
+//
+//
+//            //释放资源
+//            fclose(log->p_file);
+//            free(log->p_name);
+//            free(log->p_path);
+//            log->state = NLOGGER_LOG_STATE_CLOSE;
+//        }
+//        //如果日志文件的目录都有问题说明需要重新初始化
+//        if (log->p_dir == NULL) {
+//            LOGW("check", "log file dir is empty on check.");
+//            return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
+//        }
+//        check_log_file_healthy(log, log_file_name);
+//        int result_code = _set_log_file_name(log, log_file_name);
+//        //检查创建是否成功，如果path字符 或者 name字符创建失败则直接返回；
+//        if (result_code != ERROR_CODE_OK) {
+//            LOGW("check", "malloc file string on error >>> %d .", result_code);
+//            return result_code;
+//        }
+//        LOGD("check", "close last once and new create log file, config success %s .", log->p_path);
+        LOGE("write_nlogger", "_check_log_file_healthy already an exist disfferent log file (%s)", log->p_path)
+        return ERROR_CODE_ALREADY_AN_DIFFERENT_LOG_FILE_ON_OPEN;
     } else {
         /*表示当前写入的日志文件和上次写入的日志文件是一致的*/
         if (!is_empty_string(log->p_path) &&
@@ -162,20 +188,17 @@ int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_
             int temp_error_code = 0;
             if (log->p_name != NULL) {
                 temp_error_code |= 0x0001;
-                free(log->p_name);
             }
             if (log->p_path != NULL) {
                 temp_error_code |= 0x0010;
-                free(log->p_path);
             }
             if (log->p_file != NULL) {
                 temp_error_code |= 0x0100;
-                fclose(log->p_file);
             }
             if (log->state == NLOGGER_LOG_STATE_CLOSE) {
                 temp_error_code |= 0x1000;
             }
-            log->state = NLOGGER_LOG_STATE_CLOSE;
+            release_log_file(log);
             LOGE("check", "on error log same as last once, but state invalid. state >>> %d", temp_error_code);
             //初始化状态重新调用一次，表示当前日志文件状态有问题重新配置日志文件
             check_log_file_healthy(log, log_file_name);

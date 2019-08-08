@@ -32,6 +32,8 @@ typedef struct nlogger_log_struct {
 
 int open_log_file(struct nlogger_log_struct *log);
 
+int release_log_file(struct nlogger_log_struct *log);
+
 int check_log_file_healthy(struct nlogger_log_struct *log, const char *log_file_name);
 
 int is_log_file_name_valid(struct nlogger_log_struct *log);

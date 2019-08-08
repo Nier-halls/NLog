@@ -39,7 +39,7 @@ void on_compress_finish_callback(size_t handled_length);
  *
  * @return error_code
  */
-int init_nlogger(const char *log_file_dir, const char *cache_file_dir,const long long max_log_file_size, const char *encrypt_key,
+int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const long long max_log_file_size, const char *encrypt_key,
                  const char *encrypt_iv) {
     if (is_empty_string(log_file_dir) ||
         is_empty_string(cache_file_dir) ||
@@ -117,7 +117,17 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
 
     //step2 检查日志文件
     //step2.1 检查日志文件是否打开，已经打开的日志文件是否和当前要写入的是同一个
+    // todo [BUG] 2019年8月7日 这个时候万一remainData还有数据会发生数据错位,在logFile切换的情况下应该调用一次flush
     int check_log_result = check_log_file_healthy(&g_nlogger->log, log_file_name);
+
+    while (check_log_result == ERROR_CODE_ALREADY_AN_DIFFERENT_LOG_FILE_ON_OPEN) {
+        //todo [FIX BUG] 2019年8月8日 当已经有一个文件打开的情况下，尝试先将缓存清空写入到日志文件中再关闭日志文件
+        flush_nlogger();
+        //释放log file name 关闭日志文件
+        release_log_file(&g_nlogger->log);
+        //重新检查并且尝试创建新的日志文件
+        check_log_result = check_log_file_healthy(&g_nlogger->log, log_file_name);
+    }
 
     if (check_log_result < 0) {
         LOGE("write_nlogger", "_check_log_file_healthy on error >>> %d", check_log_result)
@@ -125,18 +135,12 @@ int write_nlogger(const char *log_file_name, int flag, char *log_content, long l
     }
 
     //第一次创建或者打开日志文件，需要重新映射当前mmap缓存指向的日志文件 方便下次启动将缓存flush到指定的日志文件中
-    // todo [BUG] 2019年8月7日 这个时候万一remainData还有数据会发生数据错位
-    // todo [BUG] 2019年8月7日 在logFile切换的情况下应该调用一次flush
     if (check_log_result == ERROR_CODE_NEW_LOG_FILE_OPENED) {
         int init_cache_result = map_log_file_with_cache(&g_nlogger->cache, log_file_name);
         if (init_cache_result != ERROR_CODE_OK) {
             return init_cache_result;
         }
     }
-
-
-    //step2.2 检查日志文件的大小是否超过客户端设置的
-
 
     //step3 组装日志
     char *result_json_data;
@@ -281,6 +285,7 @@ int _end_current_section(struct nlogger_data_handler_struct *data_handler, struc
  * 将缓存的数据写入到日志文件中
  */
 int flush_nlogger() {
+    LOGD("flush_nlogger", "### start flush_nlogger.")
     if (g_nlogger == NULL || g_nlogger->state == NLOGGER_STATE_ERROR) {
         return ERROR_CODE_NEED_INIT_NLOGGER_BEFORE_ACTION;
     }
@@ -303,15 +308,17 @@ int flush_nlogger() {
     int  file_name_configured           = is_log_file_name_valid(&g_nlogger->log) == ERROR_CODE_OK;
     //step2.1 获取缓存对应的日志文件名
     if (!file_name_configured) {
+        LOGD("flush_nlogger", "get log file name from cache file.")
         int init_result = init_cache_from_mmap_buffer(&g_nlogger->cache, &file_name);
         if (init_result != ERROR_CODE_OK) {
             return init_result;
         }
         malloc_file_name_by_parse_mmap = 1;
     } else {
+        LOGD("flush_nlogger", "log file name exist.")
         file_name = current_log_file_name(&g_nlogger->log);
     }
-
+    LOGD("flush_nlogger", "start check log file healthy on flush.")
     //step2.2 检查文件名对应到日志文件是否存在,不存在则创建并且打开
     int check_log_result = check_log_file_healthy(&g_nlogger->log, file_name);
 
