@@ -73,8 +73,8 @@ class Gzip {
 //        "ivnier1234autoiv"
 
         val cipher = Cipher.getInstance("AES/CBC/NoPadding")
-        val key = SecretKeySpec("nier12345678auto".toByteArray(), "AES")
-        val iv = IvParameterSpec("ivnier1234autoiv".toByteArray())
+        val key = SecretKeySpec("1234456789012345".toByteArray(), "AES")
+        val iv = IvParameterSpec("1234456789012345".toByteArray())
         cipher.init(Cipher.DECRYPT_MODE, key, iv)
         val decrypt = cipher.doFinal(contentBuffer.array())
 

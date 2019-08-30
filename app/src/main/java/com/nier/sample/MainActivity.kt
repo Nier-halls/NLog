@@ -5,6 +5,7 @@ import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.widget.EditText
 import android.widget.TextView
+import com.nier.nlogger.Logger
 import com.nier.nlogger.NLogger
 import com.nier.nlogger.R
 import kotlinx.coroutines.*
@@ -16,7 +17,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        NLogger.init(this)
+        Logger.init(this)
 
 //        findViewById<EditText>(R.id.tv_result).setText("Hello World QWERTYUIOPASDFGHJKL[]{};':ZXCVBNM<>?,./123456789!@#\\\$%^*()!")
 //
@@ -25,15 +26,19 @@ class MainActivity : AppCompatActivity() {
 //            testMutiThread(50)
 //        }
 //
-//        findViewById<TextView>(R.id.btn_write).setOnClickListener {
-//            val text = findViewById<EditText>(R.id.tv_result).text
-//            NLogger.write("date[${System.currentTimeMillis()}] content[$text]")
+        findViewById<TextView>(R.id.btn_write).setOnClickListener {
+            val text = findViewById<EditText>(R.id.tv_result).text
+            Logger.write("date[${System.currentTimeMillis()}] content[$text]")
+
+        }
 //
-//        }
-//
-//        findViewById<TextView>(R.id.btn_flush).setOnClickListener {
-//            NLogger.flush()
-//        }
+        findViewById<TextView>(R.id.btn_flush).setOnClickListener {
+            Logger.flush()
+        }
+
+        findViewById<TextView>(R.id.btn_send).setOnClickListener {
+            Logger.send()
+        }
 
 
 //        NLoggerProxy.instance.init(this)
@@ -68,9 +73,9 @@ class MainActivity : AppCompatActivity() {
             Thread {
                 val result = i % 3
                 when (result) {
-                    0 -> NLogger.write("Hello World QWERTYUIOPASDFGHJKL[]{};':ZXCVBNM<>?,./123456789!@#\\\$%^*()!")
-                    1 -> NLogger.send()
-                    2 -> NLogger.flush()
+                    0 -> Logger.write("Hello World QWERTYUIOPASDFGHJKL[]{};':ZXCVBNM<>?,./123456789!@#\\\$%^*()!")
+                    1 -> Logger.send()
+                    2 -> Logger.flush()
                 }
             }.start()
         }

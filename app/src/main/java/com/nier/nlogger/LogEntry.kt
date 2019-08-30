@@ -6,7 +6,7 @@ import android.os.Looper
  * Created by fgd
  * Date 2019/5/29 14:29
  */
-class LogEntry(val content: String) {
+class LogEntry(val content: String, val fileName: String) {
     private val DEFAULT_LOG_TYPE = 0
 
     val threadName: String = Thread.currentThread().name//记录日志的线程名字

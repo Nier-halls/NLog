@@ -6,7 +6,7 @@ import com.nier.nlogger.action.Flush
 import com.nier.nlogger.action.IAction
 import com.nier.nlogger.action.Send
 import com.nier.nlogger.action.Write
-import java.io.File
+import java.io.*
 import java.lang.Exception
 
 /**
@@ -19,70 +19,6 @@ import java.lang.Exception
  */
 class NLogger : ILogHandler {
 
-    companion object {
-        private val TAG = "NLogger_C_client"
-        private var isLoadLibrarySuccess = false //可以考虑以后以java实现
-
-        init {
-            try {
-                System.loadLibrary("nlogger")
-                isLoadLibrarySuccess = true
-            } catch (e: Exception) {
-                isLoadLibrarySuccess = false
-                e.printStackTrace()
-            }
-        }
-
-        private val mInstance = NLogger()
-        private val mDispatcher = ActionDispatcher(mInstance)
-
-        fun init(config: NLoggerConfig) {
-            mInstance.init(config)
-
-            mDispatcher.registerDispatchHook(object : ActionDispatcher.ActionDispatchHook {
-                override fun onActionDispatch(action: IAction, logHandler: ILogHandler): IAction? {
-                    Log.d(TAG, "Call onActionDispatch >>> {${action.hashCode()}}, thread[${Thread.currentThread().id}]")
-                    return action
-                }
-            })
-
-            mDispatcher.setActionHandleResultListener(object : ActionDispatcher.ActionHandledResultListener {
-                override fun onActionHandled(action: IAction, result: Int) {
-                    Log.d(TAG, "Call onActionHandled >>>{${action.hashCode()}}, result=$result ,thread[${Thread.currentThread().id}]")
-                }
-            })
-        }
-
-        fun init(context: Context) {
-            this.init(NLoggerConfig.DEFAULT_CONFIG(context))
-        }
-
-
-        fun write(content: String) {
-            if (isLoadLibrarySuccess) {
-                val action = Write(content)
-                Log.d(TAG, "Run [write] >>> $action, thread[${Thread.currentThread().id}]")
-                mDispatcher.dispatch(action)
-            }
-        }
-
-        fun flush() {
-            if (isLoadLibrarySuccess) {
-                val action = Flush()
-                Log.d(TAG, "Run [flush] >>> $action, thread[${Thread.currentThread().id}]")
-                mDispatcher.dispatch(action)
-            }
-        }
-
-        fun send() {
-            if (isLoadLibrarySuccess) {
-                val action = Send()
-                Log.d(TAG, "Run [send] >>> $action, thread[${Thread.currentThread().id}]")
-                mDispatcher.dispatch(action)
-            }
-        }
-
-    }
 
     private external fun nativeInit(
         cache_path: String, dir_path: String, max_file: Int, encrypt_key_16: String,
@@ -104,8 +40,12 @@ class NLogger : ILogHandler {
 //    private lateinit var encryptIV: String
 //    private var maxLogFileSize: Long = 0
 
+    var currentInitConfig: NLoggerConfig? = null
+
+
     fun init(config: NLoggerConfig) {
         if (!isInit) {
+            currentInitConfig = config
 //            cacheFilePath = config.cacheFilePath
 //            logFileDir = config.logFileDir
 //            encryptKey = config.encryptKey
@@ -120,9 +60,6 @@ class NLogger : ILogHandler {
         if (!isInit) {
             return -1 //todo 统一ErrorCode
         }
-
-        val fileName = "niers_log"
-
         return log.run {
             nativeWrite(
                 file_name = fileName,
@@ -147,11 +84,65 @@ class NLogger : ILogHandler {
         return nativeFlush()
     }
 
-    override fun send(handler: (logFiles: List<File>) -> Unit): Int {
+    override fun send(filePaths: List<String>, sendTask: ISendTask): Int {
         if (!isInit) {
             return -1 //todo 统一ErrorCode
         }
-        return 0
+
+        //1.Copy所有未发送的日志文件
+        if (filePaths.isEmpty()) {
+            return -1
+        }
+
+        //2.逐个发送,真正发送的具体逻辑交给外部处理，包括删发送以后的逻辑
+        return try {
+            copyFiles(filePaths).forEach {
+                sendTask.doSend(it)
+            }
+            sendTask.finish()
+            0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            -1
+        }
     }
+
+    private fun copyFiles(filePaths: List<String>): List<File> {
+        val result = ArrayList<File>()
+        filePaths.forEach { source ->
+            var inputStream: FileInputStream? = null
+            var outputStream: FileOutputStream? = null
+            val targetFile = File("$source.temp")
+            try {
+                inputStream = FileInputStream(File(source))
+                outputStream = FileOutputStream(targetFile)
+                val buffer = ByteArray(1024)
+                var i: Int = inputStream.read(buffer)
+                while (i >= 0) {
+                    outputStream.write(buffer, 0, i)
+                    outputStream.flush()
+                    i = inputStream.read(buffer)
+                }
+                result.add(targetFile)
+            } catch (e: FileNotFoundException) {
+                e.printStackTrace()
+            } catch (e: IOException) {
+                e.printStackTrace()
+            } finally {
+                try {
+                    inputStream?.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                try {
+                    outputStream?.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+        return result
+    }
+
 
 }
