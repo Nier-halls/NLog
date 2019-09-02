@@ -5,7 +5,12 @@ import android.util.Log
 import com.nier.nlogger.ILogHandler
 import com.nier.nlogger.ISendTask
 import com.nier.nlogger.NLogger
+import okhttp3.*
+import retrofit2.Retrofit
 import java.io.File
+import java.util.*
+import java.util.concurrent.TimeUnit
+import kotlin.collections.ArrayList
 
 /**
  * Created by fgd
@@ -33,29 +38,53 @@ class Send : IAction {
         }
         val logFilePaths = ArrayList<String>()
         logFileDir.listFiles().forEach { file ->
-            if (!file.isDirectory){
+            if (!file.isDirectory) {
                 logFilePaths.add(file.absolutePath)
             }
         }
-        if (logFilePaths.isNullOrEmpty()){
+        if (logFilePaths.isNullOrEmpty()) {
             return -1
         }
 
-        return logHandler.send(logFilePaths, object : ISendTask{
-            override fun doSend(file: File) {
-                Log.d(TAG, "Send action [doSend] run, file >>> $file.")
-            }
-
-            override fun finish() {
-                Log.d(TAG, "Send action [finish] run.")
-            }
-
-        })
+        return logHandler.send(logFilePaths, sender)
     }
 
     override fun toString(): String {
         return "Send{${hashCode()}}"
     }
 
+    val client = OkHttpClient()
 
+    private val sender = object : ISendTask {
+        override fun doSend(file: File): Boolean {
+            Log.d(TAG, "Send action [doSend] run, file >>> $file.")
+
+            val requestBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart(
+                    "file", file.name,
+                    RequestBody.create(MediaType.parse("multipart/form-data"), file)
+                )
+                .addFormDataPart("app", "100")
+                .addFormDataPart("tm", "6")
+                .addFormDataPart("did", "asdfghjklqwer")
+                .build()
+
+            val request = Request.Builder()
+                .url("")
+                .post(requestBody)
+                .build()
+
+            val response = client.newCall(request).execute()
+            return response.isSuccessful
+        }
+
+        override fun onFileSent(file: File, isSuccess: Boolean) {
+            Log.d(TAG, "Send action [onFileSent] run， send file=${file.name}， success=${isSuccess}")
+            if (isSuccess) {
+                file.delete()
+            }
+        }
+
+    }
 }

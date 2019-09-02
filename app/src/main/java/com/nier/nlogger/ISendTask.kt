@@ -10,7 +10,7 @@ interface ISendTask {
     /**
      * 发送，必须要同步的发送请求
      */
-    fun doSend(file: File)
+    fun doSend(file: File): Boolean
 
-    fun finish()
+    fun onFileSent(file: File, isSuccess: Boolean)
 }

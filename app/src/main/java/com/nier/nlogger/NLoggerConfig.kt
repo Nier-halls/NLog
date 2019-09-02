@@ -9,8 +9,8 @@ import java.security.AccessControlContext
  * Date 2019/5/29 21:29
  */
 class NLoggerConfig(val cacheFilePath: String, val logFileDir: String) {
-    private val DEFAULT_ENCRYPT_KEY = "nier12345678auto"
-    private val DEFAULT_ENCRYPT_IV = "ivnier1234autoiv"
+    private val DEFAULT_ENCRYPT_KEY = "hexinapp20190807"
+    private val DEFAULT_ENCRYPT_IV = "nierhexinlognier"
     private val DEFAULT_MAX_LOG_FILE_SIZE = 10L * 1024L * 1024L
 
     var encryptKey: String = DEFAULT_ENCRYPT_KEY

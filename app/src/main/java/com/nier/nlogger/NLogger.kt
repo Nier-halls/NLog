@@ -1,11 +1,5 @@
 package com.nier.nlogger
 
-import android.content.Context
-import android.util.Log
-import com.nier.nlogger.action.Flush
-import com.nier.nlogger.action.IAction
-import com.nier.nlogger.action.Send
-import com.nier.nlogger.action.Write
 import java.io.*
 import java.lang.Exception
 
@@ -96,10 +90,10 @@ class NLogger : ILogHandler {
 
         //2.逐个发送,真正发送的具体逻辑交给外部处理，包括删发送以后的逻辑
         return try {
-            copyFiles(filePaths).forEach {
-                sendTask.doSend(it)
+            copyFiles(filePaths).forEachIndexed { index, file ->
+                val isSuccess = sendTask.doSend(file)
+                sendTask.onFileSent(File(filePaths[index]), isSuccess)
             }
-            sendTask.finish()
             0
         } catch (e: Exception) {
             e.printStackTrace()
