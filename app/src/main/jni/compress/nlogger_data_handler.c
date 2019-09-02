@@ -133,6 +133,7 @@ size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_hand
         have = NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE - stream->avail_out;
         handled += _aes_encrypt(data_handler, destination, out, have);
         //直接写入不进行加密
+//        handled += have;
 //        memcpy(destination, out, have);
         //更新下次写入的指针
         // todo 换一个变量名字
@@ -158,6 +159,12 @@ size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *dest
     size_t        unencrypt_data_length = data_length + data_handler->remain_data_length;
     size_t        handle_data_length    = (unencrypt_data_length / NLOGGER_AES_ENCRYPT_UNIT) * (size_t) NLOGGER_AES_ENCRYPT_UNIT;
     size_t        remain_data_length    = unencrypt_data_length % (size_t) NLOGGER_AES_ENCRYPT_UNIT;
+
+//    LOGE("encrypt", "上次剩余数据长度 >>> %zd", data_handler->remain_data_length)
+//    LOGE("encrypt", "计划写入总数据长度 >>> %zd", unencrypt_data_length)
+//    LOGE("encrypt", "允许写入数据长度 >>> %zd", handle_data_length)
+//    LOGE("encrypt", "剩余数据长度 >>> %zd", remain_data_length)
+
 //    char          *curr                 = destination;
     unsigned char handle_data[handle_data_length];
     unsigned char *next_copy_point      = handle_data;
@@ -187,9 +194,10 @@ size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *dest
             next_copy_point += data_handler->remain_data_length;
             memcpy(next_copy_point, data, remain_data_length);
         }
-        data_handler->remain_data_length = remain_data_length;
+        //todo [BUG] 这块赋值不能放在里面，查了一天，在剩余数据为0的情况下就不能设置这个值了！！！
+        //data_handler->remain_data_length = remain_data_length;
     }
-
+    data_handler->remain_data_length = remain_data_length;
     return handled;
 }
 
