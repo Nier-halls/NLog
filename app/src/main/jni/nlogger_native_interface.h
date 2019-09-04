@@ -15,7 +15,7 @@ extern "C"
  * JNI write interface
  */
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeWrite(JNIEnv *env, jobject instance,
+Java_com_nier_nlogger_NLogger_nativeWrite(JNIEnv *env, jobject instance,
                                                jstring file_name,
                                                jint flag, jstring log_,
                                                jlong local_time, jstring thread_name_,
@@ -24,28 +24,35 @@ Java_com_nier_nlogger_NLoggerProxy_nativeWrite(JNIEnv *env, jobject instance,
  * JNI init interface
  */
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeInit(JNIEnv *env, jobject instance,
-                                              jstring cache_path_,
-                                              jstring dir_path_, jint max_file,
-                                              jstring encrypt_key16_,
-                                              jstring encrypt_iv16_);
+Java_com_nier_nlogger_NLogger_nativeInit(JNIEnv *env,
+                                         jobject instance,
+                                         jstring cache_path_,
+                                         jstring dir_path_,
+                                         jlong max_file_size,
+                                         jstring encrypt_key16_,
+                                         jstring encrypt_iv16_);
 
 /**
- * JNI open interface
+ * JNI init interface
  */
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeOpen(JNIEnv *env, jobject instance,
-                                              jstring file_name_);
+Java_com_nier_nlogger_Logger1_nativeInit1(JNIEnv *env,
+                                         jobject instance,
+                                         jstring cache_path_,
+                                         jstring dir_path_,
+                                         jlong max_file_size,
+                                         jstring encrypt_key16_,
+                                         jstring encrypt_iv16_);
 
 /**
  * JNI flush interface
  */
 JNIEXPORT jint JNICALL
-Java_com_nier_nlogger_NLoggerProxy_nativeFlush(JNIEnv *env, jobject instance);
+Java_com_nier_nlogger_NLogger_nativeFlush(JNIEnv *env, jobject instance);
 
 
 JNIEXPORT jstring JNICALL
-Java_com_nier_nlogger_NLoggerProxy_sayHello(JNIEnv *env, jobject instance, jstring content);
+Java_com_nier_nlogger_NLogger_sayHello(JNIEnv *env, jobject instance, jstring content);
 
 #ifdef __cplusplus
 }

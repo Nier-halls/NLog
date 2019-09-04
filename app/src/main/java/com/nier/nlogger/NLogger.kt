@@ -15,7 +15,7 @@ class NLogger : ILogHandler {
 
 
     private external fun nativeInit(
-        cache_path: String, dir_path: String, max_file: Int, encrypt_key_16: String,
+        cache_path: String, dir_path: String, max_file: Long, encrypt_key_16: String,
         encrypt_iv_16: String
     ): Int
 
@@ -45,7 +45,7 @@ class NLogger : ILogHandler {
 //            encryptKey = config.encryptKey
 //            encryptIV = config.encryptIV
 //            maxLogFileSize = config.maxLogFileSize
-            nativeInit(config.cacheFilePath, config.logFileDir, config.maxLogFileSize.toInt(), config.encryptKey, config.encryptIV)
+            nativeInit(config.cacheFilePath, config.logFileDir, config.maxLogFileSize, config.encryptKey, config.encryptIV)
             isInit = true
         }
     }
