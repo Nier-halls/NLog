@@ -27,6 +27,20 @@
 #define NLOGGER_HANDLER_STATE_HANDLING 2
 #endif
 
+/**
+ * 是否对数据进行压缩算法
+ */
+#ifndef NLOGGER_HANDLER_FLAG_COMPRESS
+#define NLOGGER_HANDLER_FLAG_COMPRESS 1
+#endif
+
+/**
+ * 是否对数据进行加密处理
+ */
+#ifndef NLOGGER_HANDLER_FLAG_ENCRYPT
+#define NLOGGER_HANDLER_FLAG_ENCRYPT 2
+#endif
+
 
 #include <stdio.h>
 #include <zlib.h>
@@ -44,6 +58,7 @@ typedef struct nlogger_data_handler_struct {
     char     p_remain_data[16];
     size_t   remain_data_length;
     int      state;
+    int      flag;
 };
 
 int init_encrypt(struct nlogger_data_handler_struct *data_handler, const char *encrypt_key, const char *encrypt_iv);

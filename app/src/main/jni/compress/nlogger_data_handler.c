@@ -13,7 +13,9 @@ void _real_mbedtls_encrypt(struct nlogger_data_handler_struct *data_handler, cha
 
 size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, unsigned char *data, size_t data_length);
 
-size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t source_length, int type);
+size_t _zlib_compress(struct nlogger_data_handler_struct *data_handler, char *destination, char *source, size_t source_length, int type);
+
+size_t _zlib_without_compress_and_encrypt(char *destination, char *source, size_t source_length);
 
 /**
  * 初始化加密配置，缓存加密密钥以及偏移量
@@ -90,7 +92,7 @@ size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler,
     LOGW("compress_data", "start compress_and_write_data, target length >>> %zd", length);
     size_t handled = 0;
     //todo 压缩数据 加密数据 不一定所有数据都会写入，会有一小部分数据缓存等待下一次写入
-    handled = _zlib_compress_with_encrypt(data_handler, destination, source, length, Z_SYNC_FLUSH);
+    handled = _zlib_compress(data_handler, destination, source, length, Z_SYNC_FLUSH);
     LOGW("compress_data", "after compress_and_write_data, handled >>> %zd", handled);
     data_handler->state = NLOGGER_HANDLER_STATE_HANDLING;
     if (handled > 0) {
@@ -110,11 +112,15 @@ size_t compress_and_write_data(struct nlogger_data_handler_struct *data_handler,
  * @param type
  * @return
  */
-size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, char *source,
-                                   size_t source_length, int type) {
-    size_t   handled = 0;
-    z_stream *stream = data_handler->p_stream;
+size_t _zlib_compress(struct nlogger_data_handler_struct *data_handler, char *destination, char *source,
+                      size_t source_length, int type) {
+    if (!(data_handler->flag & NLOGGER_HANDLER_FLAG_COMPRESS)) {
+        return _zlib_without_compress_and_encrypt(destination, source, source_length);
+    }
 
+    size_t        handled    = 0;
+    z_stream      *stream    = data_handler->p_stream;
+    char          *nextWrite = destination;
     unsigned char out[NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE];
     unsigned int  have;
     stream->avail_in = (uInt) source_length;
@@ -124,24 +130,43 @@ size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_hand
         stream->next_out  = out;
         int def_res = deflate(stream, type);
         if (Z_STREAM_ERROR == def_res) {
-            LOGE("zlib","compress log data on error.");
+            LOGE("zlib", "compress log data on error.");
             //这里如果出现错误会导致日志错位，日志截断，怎么主动发现这个错误的日志
             deflateEnd(stream);
             data_handler->state = NLOGGER_HANDLER_STATE_IDLE;
             return (size_t) 0;
         }
         have = NLOGGER_ZLIB_COMPRESS_CHUNK_SIZE - stream->avail_out;
-        handled += _aes_encrypt(data_handler, destination, out, have);
-        //直接写入不进行加密
-//        handled += have;
-//        memcpy(destination, out, have);
+        if (data_handler->flag & NLOGGER_HANDLER_FLAG_ENCRYPT) {
+            handled += _aes_encrypt(data_handler, nextWrite, out, have);
+        } else {
+            handled += have;
+            memcpy(nextWrite, out, have);
+        }
+
         //更新下次写入的指针
         // todo 换一个变量名字
-        destination += have;
+        nextWrite += have;
 //        handled += have;
     } while (0 == stream->avail_out);
 
     return handled;
+}
+
+/**
+ *
+ * 非压缩 给加密版本 测试test用
+ *
+ * @param data_handler
+ * @param destination
+ * @param source
+ * @param source_length
+ * @param type
+ * @return
+ */
+size_t _zlib_without_compress_and_encrypt(char *destination, char *source, size_t source_length) {
+    memcpy(destination, source, source_length);
+    return source_length;
 }
 
 
@@ -155,10 +180,10 @@ size_t _zlib_compress_with_encrypt(struct nlogger_data_handler_struct *data_hand
  * @return
  */
 size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *destination, unsigned char *data, size_t data_length) {
-    size_t        handled               = 0;
-    size_t        unencrypt_data_length = data_length + data_handler->remain_data_length;
-    size_t        handle_data_length    = (unencrypt_data_length / NLOGGER_AES_ENCRYPT_UNIT) * (size_t) NLOGGER_AES_ENCRYPT_UNIT;
-    size_t        remain_data_length    = unencrypt_data_length % (size_t) NLOGGER_AES_ENCRYPT_UNIT;
+    size_t handled                 = 0;
+    size_t unencrypt_data_length   = data_length + data_handler->remain_data_length;
+    size_t handle_data_length      = (unencrypt_data_length / NLOGGER_AES_ENCRYPT_UNIT) * (size_t) NLOGGER_AES_ENCRYPT_UNIT;
+    size_t remain_data_length      = unencrypt_data_length % (size_t) NLOGGER_AES_ENCRYPT_UNIT;
 
 //    LOGE("encrypt", "上次剩余数据长度 >>> %zd", data_handler->remain_data_length)
 //    LOGE("encrypt", "计划写入总数据长度 >>> %zd", unencrypt_data_length)
@@ -167,7 +192,7 @@ size_t _aes_encrypt(struct nlogger_data_handler_struct *data_handler, char *dest
 
 //    char          *curr                 = destination;
     unsigned char handle_data[handle_data_length];
-    unsigned char *next_copy_point      = handle_data;
+    unsigned char *next_copy_point = handle_data;
 
     if (handle_data_length) {
         size_t copy_data_length = handle_data_length - data_handler->remain_data_length;
@@ -237,7 +262,7 @@ size_t finish_compress_data(struct nlogger_data_handler_struct *data_handler, ch
         return (size_t) -1;
     }
 
-    handled = _zlib_compress_with_encrypt(data_handler, destination, NULL, 0, Z_FINISH);
+    handled = _zlib_compress(data_handler, destination, NULL, 0, Z_FINISH);
     deflateEnd(data_handler->p_stream);
     destination += handled;
 

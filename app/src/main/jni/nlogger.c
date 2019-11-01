@@ -70,6 +70,8 @@ int init_nlogger(const char *log_file_dir, const char *cache_file_dir, const lon
     //配置加密相关的参数
     init_encrypt(&g_nlogger->data_handler, encrypt_key, encrypt_iv);
 
+    g_nlogger->data_handler.flag = NLOGGER_HANDLER_FLAG_ENCRYPT | NLOGGER_HANDLER_FLAG_COMPRESS;
+
     //初始换并且创建缓存（优先创建mmap）
     int init_cache_result = init_cache(&g_nlogger->cache, cache_file_dir);
 

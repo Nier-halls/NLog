@@ -86,7 +86,9 @@ int malloc_and_build_cache_header_json_data(char *log_file_name, char **result_j
         if (result_json != NULL) {
             LOGW("protocol_log", "header result_json >>> %s", result_json);
             size_t content_length = strlen(result_json);
-            size_t final_length   = content_length + 1; //加上末尾的换行符\n
+            //todo bug 末尾再加上一个空字符，避免取长度出现问题
+//            size_t final_length = content_length + 1; //加上末尾的换行符\n
+            size_t final_length = content_length + 1 + 1; //加上末尾的换行符\n
             char   *log_data      = malloc(final_length);
             memset(log_data, 0, final_length);
             memcpy(log_data, result_json, content_length);
